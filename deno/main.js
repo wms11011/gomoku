@@ -19,7 +19,13 @@ const ops = require("../server/room-ops.js");
 // 以本文件位置为基准定位前端目录，与工作目录无关
 const PUBLIC_DIR = fromFileUrl(new URL("../public/", import.meta.url));
 
-const kv = await Deno.openKv(Deno.env.get("KV_PATH") || undefined);
+// KV 未绑定时优雅降级：静态页面与人机对战仍可用，仅联机对战提示不可用
+let kv = null;
+try {
+  kv = await Deno.openKv(Deno.env.get("KV_PATH") || undefined);
+} catch (err) {
+  console.error("Deno KV 不可用（联机对战将不可用）:", err.message);
+}
 
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const ROOM_TTL = 2 * 3600 * 1000; // 房间超过 2 小时允许被覆盖复用
@@ -181,6 +187,10 @@ function handleSocket(socket) {
   socket.onmessage = (ev) => {
     let msg;
     try { msg = JSON.parse(ev.data); } catch { return; }
+    if (!kv) {
+      if (msg.t !== "ping") send(socket, { t: "error", msg: "联机服务暂不可用（服务器未配置 KV）" });
+      return;
+    }
     handleMessage(socket, msg).catch((err) => console.error("处理消息出错:", err));
   };
   socket.onclose = () => { leaveCurrentRoom(socket).catch(() => {}); };
