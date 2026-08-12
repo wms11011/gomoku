@@ -15,9 +15,13 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const ops = require("../server/room-ops.js");
+const auth = require("../server/auth.js");
 
-// 以本文件位置为基准定位前端目录，与工作目录无关
+// 以本文件位置为基准定位资源，与工作目录无关
 const PUBLIC_DIR = fromFileUrl(new URL("../public/", import.meta.url));
+const GATE_HTML = await Deno.readTextFile(fromFileUrl(new URL("../server/gate.html", import.meta.url)));
+
+auth.init(Deno.env.toObject());
 
 // KV 未绑定时优雅降级：静态页面与人机对战仍可用，仅联机对战提示不可用
 let kv = null;
@@ -200,7 +204,42 @@ function handleSocket(socket) {
 // ---------- HTTP 入口 ----------
 const port = Number(Deno.env.get("PORT")) || 3000;
 
-Deno.serve({ port }, (req) => {
+Deno.serve({ port }, async (req) => {
+  const url = new URL(req.url);
+
+  // 门禁：手机号验证
+  if (url.pathname === "/api/login" && req.method === "POST") {
+    let phone = "";
+    try { phone = (await req.json()).phone; } catch { /* 忽略 */ }
+    if (auth.checkPhone(phone)) {
+      const isHttps = req.headers.get("x-forwarded-proto") === "https" || url.protocol === "https:";
+      return new Response('{"ok":true}', {
+        status: 200,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "set-cookie": auth.makeCookie(String(phone).trim(), isHttps),
+        },
+      });
+    }
+    // 失败延迟响应，增加穷举成本
+    await new Promise((r) => setTimeout(r, 800));
+    return new Response('{"ok":false}', {
+      status: 403,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    });
+  }
+
+  // 未通过验证 → 一律返回门禁页（WebSocket 握手同样拦截）
+  if (!auth.authed(req.headers.get("cookie"))) {
+    if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
+      return new Response("Unauthorized", { status: 401 });
+    }
+    return new Response(GATE_HTML, {
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
+
   if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
     const { socket, response } = Deno.upgradeWebSocket(req);
     handleSocket(socket);

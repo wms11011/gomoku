@@ -18,9 +18,13 @@ const path = require('path');
 const os = require('os');
 const { WebSocketServer } = require('ws');
 const ops = require('./room-ops');
+const auth = require('./auth');
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+const GATE_HTML = fs.readFileSync(path.join(__dirname, 'gate.html'));
+
+auth.init(process.env);
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -32,7 +36,7 @@ const MIME = {
   '.ico': 'image/x-icon',
 };
 
-// ---------- 静态文件服务 ----------
+// ---------- 静态文件服务（带门禁） ----------
 const server = http.createServer((req, res) => {
   let urlPath;
   try {
@@ -40,6 +44,39 @@ const server = http.createServer((req, res) => {
   } catch {
     res.writeHead(400); res.end('Bad Request'); return;
   }
+
+  // 门禁：手机号验证
+  if (urlPath === '/api/login' && req.method === 'POST') {
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 4096) req.destroy(); });
+    req.on('end', () => {
+      let phone = '';
+      try { phone = JSON.parse(body).phone; } catch { /* 忽略 */ }
+      if (auth.checkPhone(phone)) {
+        const isHttps = req.headers['x-forwarded-proto'] === 'https' || !!req.socket.encrypted;
+        res.writeHead(200, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Set-Cookie': auth.makeCookie(String(phone).trim(), isHttps),
+        });
+        res.end('{"ok":true}');
+      } else {
+        // 失败延迟响应，增加穷举成本
+        setTimeout(() => {
+          res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end('{"ok":false}');
+        }, 800);
+      }
+    });
+    return;
+  }
+
+  // 未通过验证 → 一律返回门禁页
+  if (!auth.authed(req.headers.cookie)) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(GATE_HTML);
+    return;
+  }
+
   if (urlPath === '/') urlPath = '/index.html';
   const filePath = path.join(PUBLIC_DIR, path.normalize(urlPath));
   if (!filePath.startsWith(PUBLIC_DIR)) { res.writeHead(403); res.end('Forbidden'); return; }
@@ -51,7 +88,11 @@ const server = http.createServer((req, res) => {
 });
 
 // ---------- 房间管理（内存） ----------
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({
+  server,
+  // WebSocket 握手同样要过门禁
+  verifyClient: (info, cb) => cb(auth.authed(info.req.headers.cookie), 401, 'Unauthorized'),
+});
 const rooms = new Map(); // code -> { room, clients: Set<{ws, cid}> }
 
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // 去掉易混淆的 0/O/1/I/L

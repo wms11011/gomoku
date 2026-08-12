@@ -2,10 +2,25 @@
 'use strict';
 const assert = require('assert');
 const WebSocket = require('ws');
+const BASE = 'https://gomoku.wms11011.deno.net';
 const URL = 'wss://gomoku.wms11011.deno.net';
 
+// 门禁已启用：先通过手机号换取 Cookie（手机号从环境变量读，勿写入代码）
+let COOKIE = '';
+async function login() {
+  const phone = process.env.GOMOKU_TEST_PHONE;
+  if (!phone) throw new Error('请设置环境变量 GOMOKU_TEST_PHONE（白名单手机号之一）');
+  const r = await fetch(`${BASE}/api/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone }),
+  });
+  if (!r.ok) throw new Error(`登录失败: ${r.status}`);
+  COOKIE = (r.headers.get('set-cookie') || '').split(';')[0];
+}
+
 function mk(name, cid) {
-  const ws = new WebSocket(URL);
+  const ws = new WebSocket(URL, { headers: { Cookie: COOKIE } });
   const queue = []; const waiters = [];
   ws.on('message', raw => {
     const m = JSON.parse(raw.toString());
@@ -33,6 +48,8 @@ function mk(name, cid) {
 
 (async () => {
   const t0 = Date.now();
+  await login();
+  console.log('  门禁登录成功');
   const A = mk('A', 'live-alice-' + Date.now());
   await new Promise(r => A.ws.on('open', r));
   A.send({ t: 'create' });

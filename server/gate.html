@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>五子棋 · 身份验证</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚫</text></svg>">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+      color: #e9e6df;
+      background:
+        radial-gradient(1200px 600px at 15% -10%, rgba(216, 179, 106, 0.10), transparent 60%),
+        radial-gradient(900px 500px at 90% 110%, rgba(120, 90, 200, 0.08), transparent 60%),
+        #14161c;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      width: 360px; max-width: 100%;
+      background: rgba(255, 255, 255, 0.055);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 18px;
+      padding: 36px 30px 30px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+      text-align: center;
+    }
+    h1 {
+      font-family: "STKaiti", "KaiTi", "SimSun", serif;
+      font-size: 36px; letter-spacing: 10px; padding-left: 10px;
+      background: linear-gradient(180deg, #f0d095, #d8b36a 60%, #a8823f);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .sub { margin: 8px 0 26px; font-size: 12px; letter-spacing: 5px; color: #9a978f; }
+    .tip { font-size: 14px; color: #c9c6bd; margin-bottom: 16px; }
+    input {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.28);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      color: #e9e6df;
+      font-size: 20px; letter-spacing: 3px; text-align: center;
+      padding: 12px; outline: none;
+      transition: border-color 0.18s ease;
+    }
+    input:focus { border-color: #d8b36a; }
+    button {
+      width: 100%; margin-top: 14px;
+      border: none; border-radius: 10px;
+      font-size: 15px; font-weight: 600; font-family: inherit;
+      color: #1c1608;
+      background: linear-gradient(180deg, #f0d095, #d8b36a);
+      box-shadow: 0 4px 14px rgba(216, 179, 106, 0.3);
+      padding: 12px; cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    button:hover:not(:disabled) { transform: translateY(-1px); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .err { min-height: 20px; margin-top: 12px; font-size: 13px; color: #e97070; }
+    .shake { animation: shake 0.35s ease; }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-7px); }
+      75% { transform: translateX(7px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>五子棋</h1>
+    <p class="sub">G O M O K U · 连 珠</p>
+    <p class="tip">本游戏仅对受邀玩家开放<br>请输入手机号验证身份（仅需验证一次）</p>
+    <input id="phone" type="tel" maxlength="11" placeholder="手机号" autocomplete="off" inputmode="numeric">
+    <button id="btn">验证并进入</button>
+    <div class="err" id="err"></div>
+  </div>
+  <script>
+    const phone = document.getElementById('phone');
+    const btn = document.getElementById('btn');
+    const err = document.getElementById('err');
+    phone.focus();
+
+    async function submit() {
+      const val = phone.value.trim();
+      if (!/^1\d{10}$/.test(val)) { fail('请输入 11 位手机号'); return; }
+      btn.disabled = true;
+      err.textContent = '';
+      try {
+        const r = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: val }),
+        });
+        if (r.ok) { location.reload(); return; }
+        fail('该手机号不在受邀名单中');
+      } catch {
+        fail('网络错误，请重试');
+      }
+      btn.disabled = false;
+    }
+
+    function fail(msg) {
+      err.textContent = msg;
+      phone.classList.remove('shake');
+      void phone.offsetWidth;
+      phone.classList.add('shake');
+      phone.select();
+    }
+
+    btn.addEventListener('click', submit);
+    phone.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  </script>
+</body>
+</html>
