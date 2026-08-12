@@ -345,64 +345,78 @@
     }, 300 + Math.random() * 250);
   }
 
-  // ==================== 联机 ====================
+  // ==================== 联机（快照同步协议） ====================
+  let lastMoveCount = 0;   // 已同步的手数（用于音效/动画）
+  let wasActive = false;   // 上一快照是否双方都在
+  let lastFlashSeq = 0;    // 已消费的一次性通知
+
   function resetNetUi() {
     netRoom = null;
     netActive = false;
+    lastMoveCount = 0;
+    wasActive = false;
     els.roomInfo.classList.add('hidden');
     els.restartOffer.classList.add('hidden');
     els.btnCreate.disabled = false;
     els.btnJoin.disabled = false;
+    els.btnRestart.disabled = false;
+  }
+
+  /** 应用服务器下发的房间快照（联机模式唯一状态来源） */
+  function applySnapshot(msg) {
+    netRoom = msg.code;
+    if (msg.you) myColor = msg.you;
+
+    // 按走子序列重建棋盘
+    const prevCount = lastMoveCount;
+    board = Core.createBoard();
+    msg.moves.forEach(([x, y], i) => { board[y][x] = i % 2 === 0 ? BLACK : WHITE; });
+    history = msg.moves.map(([x, y], i) => ({ x, y, color: i % 2 === 0 ? BLACK : WHITE }));
+    turn = msg.moves.length % 2 === 0 ? BLACK : WHITE;
+    gameOver = msg.winner > 0 || !!msg.draw;
+    winLine = msg.winLine || null;
+    netActive = msg.players.black && msg.players.white;
+
+    // 新增走子的音效与落子动画
+    if (history.length > 0 && history.length === prevCount + 1) {
+      const m = history[history.length - 1];
+      anim = { x: m.x, y: m.y, start: performance.now() };
+      playPlace(m.color);
+      if (gameOver && msg.winner > 0) playWin();
+    } else if (prevCount > 0 && history.length === 0 && !gameOver) {
+      showToast('新的一局开始，黑棋先行');
+    }
+    lastMoveCount = history.length;
+
+    // 对手加入 / 离开提示
+    if (!wasActive && netActive) {
+      showToast(`对手已加入，你执${myColor === BLACK ? '黑先手' : '白后手'}`);
+    } else if (wasActive && !netActive) {
+      showToast('对手已离开，可分享房间号等待其重连');
+    }
+    wasActive = netActive;
+
+    // 重开协商 UI
+    els.restartOffer.classList.toggle('hidden', !msg.restartOffer);
+    els.btnRestart.disabled = !!msg.restartFromYou;
+
+    // 一次性通知（如对方拒绝重开）
+    if (msg.flash && msg.flash.seq > lastFlashSeq) {
+      lastFlashSeq = msg.flash.seq;
+      showToast(msg.flash.msg);
+    }
+
+    // 房间信息
+    els.roomCode.textContent = msg.code;
+    els.roomStatus.textContent = netActive ? '对局进行中' : '等待对手加入…';
+    els.roomInfo.classList.remove('hidden');
+
+    updateStatus();
+    render();
   }
 
   function setupNetHandlers() {
-    Net.on('created', (msg) => {
-      netRoom = msg.room;
-      els.roomCode.textContent = msg.room;
-      els.roomStatus.textContent = '等待对手加入…';
-      els.roomInfo.classList.remove('hidden');
-      updateStatus();
-    });
-
-    Net.on('start', (msg) => {
-      netRoom = msg.room;
-      myColor = msg.color;
-      netActive = true;
-      els.roomCode.textContent = msg.room;
-      els.roomStatus.textContent = '对局进行中';
-      els.roomInfo.classList.remove('hidden');
-      newGame();
-      showToast(`对手已加入，你执${myColor === BLACK ? '黑先手' : '白后手'}`);
-    });
-
-    Net.on('move', (msg) => {
-      applyMove(msg.x, msg.y, msg.color);
-    });
-
-    Net.on('win', () => { /* applyMove 已本地判定，无需重复处理 */ });
-    Net.on('draw', () => { /* 同上 */ });
-
-    Net.on('restartOffer', () => {
-      els.restartOffer.classList.remove('hidden');
-    });
-
-    Net.on('restartDeclined', () => {
-      els.btnRestart.disabled = false;
-      showToast('对方拒绝了重开请求');
-    });
-
-    Net.on('restarted', () => {
-      els.restartOffer.classList.add('hidden');
-      els.btnRestart.disabled = false;
-      newGame();
-      showToast('新的一局开始，黑棋先行');
-    });
-
-    Net.on('peerLeft', () => {
-      showToast('对手已离开房间');
-      resetNetUi();
-      updateStatus();
-    });
+    Net.on('state', applySnapshot);
 
     Net.on('error', (msg) => {
       els.btnCreate.disabled = false;
@@ -411,12 +425,28 @@
     });
 
     Net.on('__close', () => {
-      if (mode === 'net') {
-        showToast('与服务器的连接已断开');
+      if (mode !== 'net') return;
+      if (netRoom) {
+        // 断线自动重连，凭 cid 恢复原座位
+        showToast('连接断开，正在重连…');
+        setTimeout(async () => {
+          try {
+            await Net.connect();
+            Net.send({ t: 'join', room: netRoom });
+          } catch {
+            showToast('重连失败，请检查网络后刷新页面');
+          }
+        }, 1500);
+      } else {
         resetNetUi();
         updateStatus();
       }
     });
+
+    // 心跳保活（防止平台/代理关闭空闲连接）
+    setInterval(() => {
+      if (mode === 'net' && Net.isConnected()) Net.send({ t: 'ping' });
+    }, 25000);
   }
 
   async function createRoom() {

@@ -1,11 +1,24 @@
 /**
- * WebSocket 客户端封装：连接、消息分发。
+ * WebSocket 客户端封装：连接、消息分发、客户端标识（cid）注入。
+ * cid 存于 localStorage，断线重连后凭它恢复座位。
  */
 (function (global) {
   'use strict';
 
   let ws = null;
   const handlers = {};
+
+  // 每个浏览器一个稳定 cid
+  let cid = null;
+  try {
+    cid = localStorage.getItem('gomoku-cid');
+    if (!cid) {
+      cid = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now());
+      localStorage.setItem('gomoku-cid', cid);
+    }
+  } catch {
+    cid = String(Math.random()).slice(2) + Date.now();
+  }
 
   function connect() {
     if (ws && ws.readyState <= WebSocket.OPEN) return Promise.resolve();
@@ -27,12 +40,14 @@
   }
 
   function send(obj) {
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ ...obj, cid }));
+    }
   }
 
   function on(type, cb) { handlers[type] = cb; }
 
   function isConnected() { return ws && ws.readyState === WebSocket.OPEN; }
 
-  global.GomokuNet = { connect, send, on, isConnected };
+  global.GomokuNet = { connect, send, on, isConnected, cid };
 })(window);

@@ -1,13 +1,14 @@
 /**
- * 五子棋服务器：
+ * 五子棋服务器（Node 版，本机/Render 部署用）：
  *  - 静态托管 public/ 前端页面
- *  - WebSocket 房间对战：创建/加入房间、走子校验、胜负判定、重开协商
+ *  - WebSocket 房间对战：内存存储 + 快照同步协议
  *
- * 协议（JSON，t 为消息类型）：
- *  客户端 → 服务器: {t:'create'} {t:'join',room} {t:'move',x,y} {t:'restart'} {t:'restartDecline'} {t:'leave'}
- *  服务器 → 客户端: {t:'created',room} {t:'start',room,color} {t:'move',x,y,color}
- *                  {t:'win',winner,line} {t:'draw'} {t:'restartOffer'} {t:'restartDeclined'}
- *                  {t:'restarted'} {t:'peerLeft'} {t:'error',msg}
+ * 协议（JSON，t 为消息类型；客户端每条消息都带 cid 标识自己）：
+ *  客户端 → 服务器: {t:'create'} {t:'join',room} {t:'move',x,y}
+ *                  {t:'restart'} {t:'restartDecline'} {t:'leave'} {t:'ping'}
+ *  服务器 → 客户端: {t:'state', ...房间快照，见 room-ops.js snapshot()} {t:'error',msg}
+ *
+ * 房间规则逻辑全部在 room-ops.js 中，与 Deno 版服务器共用。
  */
 'use strict';
 
@@ -16,9 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { WebSocketServer } = require('ws');
-const Core = require('../public/js/game.js');
-
-const { SIZE, EMPTY, BLACK, WHITE } = Core;
+const ops = require('./room-ops');
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -51,9 +50,9 @@ const server = http.createServer((req, res) => {
   });
 });
 
-// ---------- 房间管理 ----------
+// ---------- 房间管理（内存） ----------
 const wss = new WebSocketServer({ server });
-const rooms = new Map(); // code -> { code, players:[ws], board, turn, active, restartFrom }
+const rooms = new Map(); // code -> { room, clients: Set<{ws, cid}> }
 
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // 去掉易混淆的 0/O/1/I/L
 
@@ -69,132 +68,102 @@ function send(ws, obj) {
   if (ws.readyState === 1) ws.send(JSON.stringify(obj));
 }
 
-function broadcast(room, obj) {
-  for (const p of room.players) send(p, obj);
+/** 向房间内所有客户端推送个性化快照 */
+function broadcastState(entry) {
+  for (const c of entry.clients) send(c.ws, ops.snapshot(entry.room, c.cid));
 }
 
-function getRoom(ws) {
-  return ws._room ? rooms.get(ws._room) : null;
+function getEntryByWs(ws) {
+  return ws._code ? rooms.get(ws._code) : null;
 }
 
-/** 解散房间：通知对手并清理双方状态 */
-function leaveRoom(ws) {
-  const room = getRoom(ws);
-  if (!room) return;
-  const peer = room.players.find(p => p !== ws);
-  ws._room = null;
-  ws._color = null;
-  rooms.delete(room.code);
-  if (peer) {
-    peer._room = null;
-    peer._color = null;
-    send(peer, { t: 'peerLeft' });
+/** 把连接登记进房间并推送当前状态 */
+function attach(ws, code, cid) {
+  let entry = rooms.get(code);
+  entry.clients.add({ ws, cid });
+  ws._code = code;
+  ws._cid = cid;
+  send(ws, ops.snapshot(entry.room, cid));
+}
+
+function detach(ws) {
+  const entry = getEntryByWs(ws);
+  if (!entry) return;
+  for (const c of entry.clients) {
+    if (c.ws === ws) entry.clients.delete(c);
   }
+  const out = ops.applyLeave(entry.room, ws._cid);
+  ws._code = null;
+  ws._cid = null;
+  if (out.delete) rooms.delete(entry.room.code);
+  else broadcastState(entry); // 通知留下的人：对手走了
 }
 
 function handleMessage(ws, raw) {
   let msg;
   try { msg = JSON.parse(raw); } catch { return; }
+  const cid = String(msg.cid || '');
+  if (!cid && msg.t !== 'ping') return;
 
   switch (msg.t) {
+    case 'ping':
+      break;
+
     case 'create': {
-      leaveRoom(ws);
+      detach(ws); // 先退出旧房间
       const code = genCode();
-      rooms.set(code, {
-        code,
-        players: [ws],
-        board: Core.createBoard(),
-        turn: BLACK,
-        active: false,
-        restartFrom: null,
-      });
-      ws._room = code;
-      ws._color = BLACK; // 创建者执黑先手
-      send(ws, { t: 'created', room: code });
+      rooms.set(code, { room: ops.createRoomObj(code, cid), clients: new Set() });
+      attach(ws, code, cid);
       break;
     }
 
     case 'join': {
-      leaveRoom(ws);
       const code = String(msg.room || '').toUpperCase().trim();
-      const room = rooms.get(code);
-      if (!room) { send(ws, { t: 'error', msg: '房间不存在，请检查房间号' }); return; }
-      if (room.players.length >= 2) { send(ws, { t: 'error', msg: '房间已满' }); return; }
-      room.players.push(ws);
-      room.active = true;
-      room.board = Core.createBoard();
-      room.turn = BLACK;
-      ws._room = code;
-      ws._color = WHITE; // 加入者执白后手
-      send(room.players[0], { t: 'start', room: code, color: BLACK });
-      send(ws, { t: 'start', room: code, color: WHITE });
+      const entry = rooms.get(code);
+      if (!entry) { send(ws, { t: 'error', msg: '房间不存在，请检查房间号' }); return; }
+      const out = ops.applyJoin(entry.room, cid);
+      if (out.err) { send(ws, { t: 'error', msg: out.err }); return; }
+      detach(ws);
+      attach(ws, code, cid);
+      if (!out.resumed) broadcastState(entry); // 新对手加入，通知双方
       break;
     }
 
     case 'move': {
-      const room = getRoom(ws);
-      if (!room || !room.active) return;
-      const x = msg.x | 0, y = msg.y | 0;
-      if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) return;
-      if (ws._color !== room.turn) return;          // 不是该玩家回合
-      if (room.board[y][x] !== EMPTY) return;       // 已有棋子
-      room.board[y][x] = room.turn;
-      broadcast(room, { t: 'move', x, y, color: room.turn });
-      const line = Core.checkWin(room.board, x, y);
-      if (line) {
-        room.active = false;
-        broadcast(room, { t: 'win', winner: room.turn, line });
-      } else if (Core.isFull(room.board)) {
-        room.active = false;
-        broadcast(room, { t: 'draw' });
-      } else {
-        room.turn = Core.opponent(room.turn);
-      }
+      const entry = getEntryByWs(ws);
+      if (!entry) return;
+      const out = ops.applyMove(entry.room, cid, msg.x, msg.y);
+      if (out.err) { send(ws, { t: 'error', msg: out.err }); return; }
+      broadcastState(entry);
       break;
     }
 
-    case 'restart': {
-      const room = getRoom(ws);
-      if (!room) return;
-      if (room.restartFrom === ws) return; // 已请求过，等待对方
-      if (room.restartFrom) {
-        // 对方已请求，本次消息视为同意 → 重开
-        room.restartFrom = null;
-        room.board = Core.createBoard();
-        room.turn = BLACK;
-        room.active = room.players.length === 2;
-        broadcast(room, { t: 'restarted' });
-      } else {
-        room.restartFrom = ws;
-        const peer = room.players.find(p => p !== ws);
-        if (peer) send(peer, { t: 'restartOffer' });
-      }
-      break;
-    }
-
+    case 'restart':
     case 'restartDecline': {
-      const room = getRoom(ws);
-      if (room && room.restartFrom) {
-        send(room.restartFrom, { t: 'restartDeclined' });
-        room.restartFrom = null;
-      }
+      const entry = getEntryByWs(ws);
+      if (!entry) return;
+      const fn = msg.t === 'restart' ? ops.applyRestart : ops.applyDecline;
+      const out = fn(entry.room, cid);
+      if (out.err) { send(ws, { t: 'error', msg: out.err }); return; }
+      broadcastState(entry);
       break;
     }
 
     case 'leave':
-      leaveRoom(ws);
+      detach(ws);
       break;
   }
 }
 
 wss.on('connection', (ws) => {
-  ws._room = null;
-  ws._color = null;
+  ws._code = null;
+  ws._cid = null;
   ws.on('message', (raw) => {
     try { handleMessage(ws, raw); }
     catch (err) { console.error('处理消息出错:', err); }
   });
-  ws.on('close', () => leaveRoom(ws));
+  ws.on('close', () => detach(ws));
+  ws.on('error', () => detach(ws));
 });
 
 server.listen(PORT, () => {
@@ -203,7 +172,7 @@ server.listen(PORT, () => {
   for (const name of Object.keys(nets)) {
     for (const net of nets[name] || []) {
       if (net.family === 'IPv4' && !net.internal) {
-        console.log(`局域网访问地址: http://${net.address}:${PORT} （同一 Wi-Fi 下的设备可联机对战）`);
+        console.log(`局域网访问地址: http://${net.address}:${PORT}`);
       }
     }
   }
