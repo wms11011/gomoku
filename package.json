@@ -1,0 +1,17 @@
+{
+  "name": "gomoku",
+  "version": "1.0.0",
+  "private": true,
+  "description": "五子棋 · 支持人机对战与联网对战",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node test/core.test.js && node test/net.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

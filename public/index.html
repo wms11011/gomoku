@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>五子棋 · Gomoku</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚫</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <h1>五子棋</h1>
+    <p class="subtitle">G O M O K U · 连 珠</p>
+  </header>
+
+  <main class="layout">
+    <div class="board-frame">
+      <canvas id="board" width="640" height="640"></canvas>
+    </div>
+
+    <aside class="panel">
+      <section class="card">
+        <h2>对战模式</h2>
+        <div class="seg" id="mode-seg">
+          <button data-mode="ai" class="active">人机对战</button>
+          <button data-mode="net">联机对战</button>
+          <button data-mode="local">本地双人</button>
+        </div>
+
+        <!-- 人机选项 -->
+        <div id="ai-options" class="mode-options">
+          <span class="opt-label">难度</span>
+          <div class="seg small" id="diff-seg">
+            <button data-diff="easy">简单</button>
+            <button data-diff="medium" class="active">普通</button>
+            <button data-diff="hard">困难</button>
+          </div>
+          <span class="opt-label">执子</span>
+          <div class="seg small" id="color-seg">
+            <button data-color="1" class="active">执黑先手</button>
+            <button data-color="2">执白后手</button>
+          </div>
+        </div>
+
+        <!-- 联机选项 -->
+        <div id="net-options" class="mode-options hidden">
+          <button id="btn-create" class="btn primary wide">创建房间</button>
+          <div class="join-row">
+            <input id="room-input" maxlength="4" placeholder="房间号" autocomplete="off">
+            <button id="btn-join" class="btn">加入房间</button>
+          </div>
+          <div id="room-info" class="hidden">
+            <span class="opt-label">房间号（点击复制，发给好友）</span>
+            <div id="room-code" title="点击复制">----</div>
+            <span id="room-status" class="room-status">等待对手加入…</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="status-row">
+          <span id="turn-dot" class="stone-dot black"></span>
+          <span id="status-text">黑棋先行</span>
+        </div>
+        <div class="meta-row">
+          <span id="move-count">第 0 手</span>
+          <span id="role-text"></span>
+        </div>
+        <div class="btn-row">
+          <button id="btn-restart" class="btn primary">重新开始</button>
+          <button id="btn-undo" class="btn">悔棋</button>
+        </div>
+        <div id="restart-offer" class="restart-offer hidden">
+          <span>对方请求重新开始</span>
+          <div class="btn-row">
+            <button id="btn-accept" class="btn primary small">同意</button>
+            <button id="btn-decline" class="btn small">拒绝</button>
+          </div>
+        </div>
+      </section>
+
+      <p class="hint">点击棋盘交叉点落子 · 先连成五子者胜</p>
+    </aside>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="js/game.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/net.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,289 @@
+/* ========== 五子棋 · 界面样式 ========== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --gold: #d8b36a;
+  --gold-bright: #f0d095;
+  --bg: #14161c;
+  --card: rgba(255, 255, 255, 0.055);
+  --card-border: rgba(255, 255, 255, 0.09);
+  --text: #e9e6df;
+  --text-dim: #9a978f;
+}
+
+body {
+  min-height: 100vh;
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(216, 179, 106, 0.10), transparent 60%),
+    radial-gradient(900px 500px at 90% 110%, rgba(120, 90, 200, 0.08), transparent 60%),
+    var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 16px 48px;
+}
+
+/* ---------- 标题 ---------- */
+.site-header { text-align: center; margin-bottom: 26px; }
+
+.site-header h1 {
+  font-family: "STKaiti", "KaiTi", "SimSun", serif;
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: 14px;
+  padding-left: 14px; /* 视觉居中 */
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold) 60%, #a8823f);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 4px 24px rgba(216, 179, 106, 0.18);
+}
+
+.subtitle {
+  margin-top: 6px;
+  font-size: 12px;
+  letter-spacing: 6px;
+  color: var(--text-dim);
+}
+
+/* ---------- 布局 ---------- */
+.layout {
+  display: flex;
+  gap: 30px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  max-width: 1060px;
+}
+
+/* ---------- 棋盘 ---------- */
+.board-frame {
+  padding: 14px;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #3a2c1c, #241a10 55%, #17100a);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  flex: 0 1 auto;
+}
+
+#board {
+  display: block;
+  width: min(620px, calc(100vw - 60px));
+  height: auto;
+  border-radius: 8px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* ---------- 侧栏面板 ---------- */
+.panel {
+  width: 330px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 20px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.card h2 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 4px;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+}
+
+/* ---------- 分段选择器 ---------- */
+.seg {
+  display: flex;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: 12px;
+  padding: 5px;
+}
+
+.seg button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 14px;
+  font-family: inherit;
+  padding: 9px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.seg.small button { font-size: 13px; padding: 7px 4px; }
+
+.seg button:hover { color: var(--text); }
+
+.seg button.active {
+  color: #1c1608;
+  font-weight: 600;
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+  box-shadow: 0 3px 10px rgba(216, 179, 106, 0.35);
+}
+
+/* ---------- 模式选项区 ---------- */
+.mode-options { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+
+.opt-label { font-size: 12px; color: var(--text-dim); letter-spacing: 2px; }
+
+/* ---------- 按钮 ---------- */
+.btn {
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  padding: 10px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); transform: translateY(-1px); }
+
+.btn.primary {
+  border: none;
+  color: #1c1608;
+  font-weight: 600;
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+  box-shadow: 0 4px 14px rgba(216, 179, 106, 0.3);
+}
+
+.btn.primary:hover:not(:disabled) { background: linear-gradient(180deg, #f8e0ae, #e2bd77); }
+
+.btn.small { padding: 6px 14px; font-size: 13px; }
+.btn.wide { width: 100%; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-row { display: flex; gap: 10px; }
+.btn-row .btn { flex: 1; }
+
+/* ---------- 联机房间 ---------- */
+.join-row { display: flex; gap: 10px; }
+
+#room-input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 18px;
+  font-family: "SF Mono", Consolas, monospace;
+  letter-spacing: 6px;
+  text-align: center;
+  text-transform: uppercase;
+  padding: 9px 8px;
+  outline: none;
+  transition: border-color 0.18s ease;
+}
+
+#room-input:focus { border-color: var(--gold); }
+
+#room-info { display: flex; flex-direction: column; gap: 8px; align-items: center; padding-top: 4px; }
+
+#room-code {
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: 14px;
+  padding-left: 14px;
+  color: var(--gold-bright);
+  cursor: pointer;
+  text-shadow: 0 2px 16px rgba(216, 179, 106, 0.35);
+  transition: transform 0.15s ease;
+}
+
+#room-code:hover { transform: scale(1.05); }
+
+.room-status { font-size: 13px; color: var(--text-dim); }
+
+/* ---------- 对局状态 ---------- */
+.status-row { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; }
+
+.stone-dot {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.stone-dot.black { background: radial-gradient(circle at 35% 30%, #66666e, #0a0a0e); }
+.stone-dot.white { background: radial-gradient(circle at 35% 30%, #ffffff, #c9c6bd); }
+
+.meta-row {
+  display: flex;
+  justify-content: space-between;
+  margin: 10px 0 16px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.restart-offer {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(216, 179, 106, 0.10);
+  border: 1px solid rgba(216, 179, 106, 0.35);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hint { text-align: center; font-size: 12px; color: var(--text-dim); letter-spacing: 1px; }
+
+/* ---------- Toast 提示 ---------- */
+.toast {
+  position: fixed;
+  top: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30, 28, 24, 0.92);
+  border: 1px solid rgba(216, 179, 106, 0.4);
+  color: var(--text);
+  font-size: 14px;
+  padding: 11px 22px;
+  border-radius: 999px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  z-index: 99;
+  animation: toast-in 0.25s ease;
+  max-width: calc(100vw - 40px);
+  text-align: center;
+}
+
+.toast.fade-out { opacity: 0; transition: opacity 0.4s ease; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.hidden { display: none !important; }
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 1020px) {
+  .layout { flex-direction: column; align-items: center; }
+  .panel { width: min(620px, calc(100vw - 32px)); }
+  .site-header h1 { font-size: 34px; letter-spacing: 10px; }
+}
