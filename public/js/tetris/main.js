@@ -49,7 +49,7 @@
   let floaters = [];       // {text, x, y, t}
   let shake = 0;           // 震屏剩余帧
   let trail = null;        // {cells, t} 硬降残影
-  let lastComboShown = -1;
+  let seenClear = null;  // 已消费特效的 lastClear 引用（lock 每次生成新对象，引用比较即可判重）
 
   // ---------- 音效 ----------
   let audioCtx = null;
@@ -242,7 +242,7 @@
     // 飘分
     const label = clear.count === 4 ? `TETRIS +${clear.points}` : `+${clear.points}`;
     floaters.push({ text: label, x: BOARD_W / 2, y: BOARD_H * 0.4, t: 0 });
-    if (clear.combo > 0 && clear.combo !== lastComboShown) {
+    if (clear.combo > 0) {
       floaters.push({ text: `${clear.combo + 1} 连击!`, x: BOARD_W / 2, y: BOARD_H * 0.4 + 40, t: 0 });
     }
     if (clear.levelUp) {
@@ -390,6 +390,8 @@
     flashRows = [];
     floaters = [];
     trail = null;
+    seenClear = null;
+    prevGameOver = false; // 重置判负标记，否则第二局不再弹出结束画面
     shake = 0;
     paused = false;
     overlays.pause.classList.add('hidden');
@@ -421,16 +423,18 @@
   }
 
   let prevGameOver = false;
-  let prevClearCount = 0;
 
-  function afterAction() {
-    // 读取最近一次消行信息做特效
+  /** 消费最近一次消行事件：每次锁定只触发一次特效（按对象引用判重） */
+  function consumeClear() {
     const c = state.lastClear;
-    if (c && c.count !== prevClearCount || (c && c.count > 0 && c.rows.length)) {
+    if (c && c !== seenClear) {
+      seenClear = c;
       if (c.count > 0) spawnClearEffects(c);
     }
-    prevClearCount = c ? c.count : 0;
-    lastComboShown = c ? c.combo : -1;
+  }
+
+  function afterAction() {
+    consumeClear();
     if (state.gameOver && !prevGameOver) onGameOver();
     prevGameOver = state.gameOver;
     refreshHud();
@@ -520,11 +524,8 @@
     lastTime = now;
     if (playing && !paused && !state.gameOver) {
       Core.tick(state, dt);
-      // 重力导致的锁定也要触发特效
-      if (state.lastClear && state.lastClear.rows.length && state.lastClear !== afterAction._seen) {
-        afterAction._seen = state.lastClear;
-        spawnClearEffects(state.lastClear);
-      }
+      // 重力导致的锁定同样走统一判重的特效消费
+      consumeClear();
       if (state.gameOver && !prevGameOver) {
         prevGameOver = true;
         onGameOver();
