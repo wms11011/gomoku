@@ -506,6 +506,61 @@
   }
   touch.querySelectorAll('button').forEach(bindTouch);
 
+  // ---------- 棋盘手势操控（手机主操控方式） ----------
+  // 点按=旋转，左右滑=移动（跟手），下滑=软降（跟手），快速下挥=硬降，上滑=暂存
+  let gesture = null;
+
+  function boardScale() {
+    const r = canvas.getBoundingClientRect();
+    return { cellW: r.width / COLS, cellH: r.height / ROWS };
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    ensureAudio();
+    gesture = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t0: performance.now(), softDropped: 0 };
+    try { canvas.setPointerCapture(e.pointerId); } catch { /* 忽略 */ }
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (!gesture) return;
+    if (!playing || paused || state.gameOver) { gesture.x = e.clientX; gesture.y = e.clientY; return; }
+    const { cellW, cellH } = boardScale();
+    // 左右滑：每跨过一个格子移动一格（可连续）
+    let dx = e.clientX - gesture.x;
+    while (Math.abs(dx) >= cellW) {
+      act(dx > 0 ? 'right' : 'left');
+      gesture.x += dx > 0 ? cellW : -cellW;
+      dx = e.clientX - gesture.x;
+    }
+    // 下滑：每跨过一个格子软降一格（可连续）
+    let dy = e.clientY - gesture.y;
+    while (dy >= cellH) {
+      act('down');
+      gesture.softDropped++;
+      gesture.y += cellH;
+      dy = e.clientY - gesture.y;
+    }
+  });
+
+  canvas.addEventListener('pointerup', (e) => {
+    if (!gesture) return;
+    const dt = performance.now() - gesture.t0;
+    const dx = e.clientX - gesture.x0;
+    const dy = e.clientY - gesture.y0;
+    const dist = Math.hypot(dx, dy);
+    const softDropped = gesture.softDropped;
+    gesture = null;
+    if (!playing || paused || state.gameOver) return;
+    // 点按 → 旋转
+    if (dist <= 14 && dt <= 300) { act('rotate'); return; }
+    // 快速下挥 → 硬降（缓慢下滑已按软降跟手处理，避免重复）
+    if (dy > 60 && dy / Math.max(1, dt) > 0.45 && softDropped <= 2) { act('drop'); return; }
+    // 上滑 → 暂存
+    if (dy < -56 && Math.abs(dx) < 60) act('hold');
+  });
+
+  canvas.addEventListener('pointercancel', () => { gesture = null; });
+
   // 面板按钮
   $('btn-start').addEventListener('click', startGame);
   $('btn-again').addEventListener('click', startGame);
