@@ -287,3 +287,255 @@ body {
   .panel { width: min(620px, calc(100vw - 32px)); }
   .site-header h1 { font-size: 34px; letter-spacing: 10px; }
 }
+
+/* ---------- 游戏大厅 ---------- */
+.lobby { justify-content: center; }
+
+.lobby-grid {
+  display: flex;
+  gap: 26px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 860px;
+}
+
+.game-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 300px;
+  padding: 34px 26px 28px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 20px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  text-decoration: none;
+  color: var(--text);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.game-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(216, 179, 106, 0.5);
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.5), 0 0 30px rgba(216, 179, 106, 0.12);
+}
+
+.game-card h2 {
+  font-family: "STKaiti", "KaiTi", "SimSun", serif;
+  font-size: 26px;
+  letter-spacing: 6px;
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.game-card p { font-size: 13px; color: var(--text-dim); letter-spacing: 1px; }
+
+.game-icon {
+  position: relative;
+  width: 96px; height: 96px;
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02));
+  border: 1px solid var(--card-border);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+
+/* 五子棋图标：四颗棋子 */
+.gomoku-icon .stone {
+  position: absolute;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
+}
+.gomoku-icon .b { background: radial-gradient(circle at 35% 30%, #66666e, #0a0a0e); top: 18px; left: 18px; }
+.gomoku-icon .w { background: radial-gradient(circle at 35% 30%, #ffffff, #c9c6bd); top: 18px; right: 18px; }
+.gomoku-icon .s2 { top: auto; bottom: 18px; left: auto; right: 18px; }
+.gomoku-icon .s3 { top: auto; bottom: 18px; }
+
+/* 俄罗斯方块图标：L 形方块 */
+.tetris-icon span {
+  position: absolute;
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #ffd97a, #e8a13c 60%, #9c6a1d);
+  box-shadow: inset 0 2px 2px rgba(255,255,255,0.5), inset 0 -2px 3px rgba(0,0,0,0.35), 0 3px 6px rgba(0,0,0,0.4);
+}
+.tetris-icon span:nth-child(1) { top: 20px; left: 22px; }
+.tetris-icon span:nth-child(2) { top: 48px; left: 22px; }
+.tetris-icon span:nth-child(3) { top: 48px; left: 50px; background: linear-gradient(135deg, #8fd3ff, #3f8fd2 60%, #235a8c); }
+.tetris-icon span:nth-child(4) { top: 48px; left: 50px; transform: translateY(-28px); background: linear-gradient(135deg, #a99bff, #6a55d8 60%, #3f2f92); }
+
+.play-btn {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--gold-bright);
+  letter-spacing: 2px;
+  transition: letter-spacing 0.2s ease;
+}
+
+.game-card:hover .play-btn { letter-spacing: 4px; }
+
+.lobby-footer { margin-top: 40px; font-size: 12px; color: var(--text-dim); letter-spacing: 2px; }
+
+/* 返回大厅链接 */
+.back-link { color: var(--gold); text-decoration: none; }
+.back-link:hover { text-decoration: underline; }
+
+/* ---------- 俄罗斯方块 ---------- */
+.tetris-header h1 { font-size: 38px; letter-spacing: 10px; }
+.tetris-header { margin-bottom: 18px; }
+
+.tetris-layout {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.tetris-board-wrap {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.6),
+    0 0 40px rgba(90, 120, 255, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+#tetris-board {
+  display: block;
+  width: min(320px, calc(100vw - 40px));
+  height: auto;
+  touch-action: none;
+}
+
+/* 覆盖层（开始/暂停/结束） */
+.tetris-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 11, 18, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 5;
+}
+
+.overlay-card {
+  text-align: center;
+  padding: 28px 34px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.overlay-card h3 {
+  font-family: "STKaiti", "KaiTi", serif;
+  font-size: 26px;
+  letter-spacing: 4px;
+  margin-bottom: 12px;
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.overlay-card p {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.9;
+  margin-bottom: 18px;
+}
+
+/* 侧栏 */
+.tetris-panel {
+  width: 220px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tetris-panel .card { padding: 14px 16px; }
+.tetris-panel .card h2 { font-size: 12px; margin-bottom: 10px; }
+
+.preview-list { display: flex; gap: 8px; justify-content: space-between; }
+.preview {
+  width: 56px;
+  height: 56px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+}
+#hold { width: 64px; height: 64px; }
+
+.stats-card .stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.stats-card .stat-row b {
+  font-size: 18px;
+  color: var(--gold-bright);
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-card .btn-row { margin-top: 10px; }
+.stats-card .btn-row + .btn-row { margin-top: 8px; }
+
+/* 触屏按钮 */
+.touch-controls {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.touch-controls button {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  font-size: 22px;
+  font-family: inherit;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.touch-controls button:active { background: rgba(216, 179, 106, 0.35); }
+
+.touch-controls .drop {
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+  color: #1c1608;
+  font-weight: 700;
+}
+
+.touch-controls [data-act="hold"] { font-size: 15px; width: 64px; }
+
+.tetris-hint { margin-top: 14px; }
+
+@media (max-width: 640px) {
+  .tetris-layout { gap: 14px; }
+  .tetris-panel {
+    width: min(320px, calc(100vw - 40px));
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .tetris-panel .card { flex: 1 1 45%; }
+  .tetris-header h1 { font-size: 28px; }
+}

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>俄罗斯方块 · Tetris</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟨</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header tetris-header">
+    <h1>俄罗斯方块</h1>
+    <p class="subtitle">T E T R I S</p>
+  </header>
+
+  <main class="tetris-layout">
+    <div class="tetris-board-wrap" id="board-wrap">
+      <canvas id="tetris-board"></canvas>
+
+      <div class="tetris-overlay" id="overlay-start">
+        <div class="overlay-card">
+          <h3>俄罗斯方块</h3>
+          <p>← → 移动 · ↑ 旋转 · ↓ 软降<br>空格 硬降 · C 暂存 · P 暂停</p>
+          <button class="btn primary" id="btn-start">开始游戏</button>
+        </div>
+      </div>
+
+      <div class="tetris-overlay hidden" id="overlay-pause">
+        <div class="overlay-card">
+          <h3>已暂停</h3>
+          <button class="btn primary" id="btn-resume">继续</button>
+        </div>
+      </div>
+
+      <div class="tetris-overlay hidden" id="overlay-over">
+        <div class="overlay-card">
+          <h3>游戏结束</h3>
+          <p id="over-text">得分 0</p>
+          <button class="btn primary" id="btn-again">再来一局</button>
+        </div>
+      </div>
+    </div>
+
+    <aside class="tetris-panel">
+      <section class="card">
+        <h2>下一个</h2>
+        <div class="preview-list">
+          <canvas class="preview" id="next-0" width="96" height="96"></canvas>
+          <canvas class="preview" id="next-1" width="96" height="96"></canvas>
+          <canvas class="preview" id="next-2" width="96" height="96"></canvas>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>暂存 (C)</h2>
+        <canvas class="preview" id="hold" width="96" height="96"></canvas>
+      </section>
+
+      <section class="card stats-card">
+        <div class="stat-row"><span>分数</span><b id="stat-score">0</b></div>
+        <div class="stat-row"><span>消行</span><b id="stat-lines">0</b></div>
+        <div class="stat-row"><span>等级</span><b id="stat-level">1</b></div>
+        <div class="stat-row"><span>最高分</span><b id="stat-best">0</b></div>
+        <div class="btn-row">
+          <button class="btn small" id="btn-restart">重新开始</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn small" id="btn-pause">暂停</button>
+          <button class="btn small" id="btn-mute">🔊 音效</button>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <div class="touch-controls hidden" id="touch-controls">
+    <button data-act="left">◀</button>
+    <button data-act="rotate">↻</button>
+    <button data-act="right">▶</button>
+    <button data-act="down">▼</button>
+    <button data-act="drop" class="drop">⤓</button>
+    <button data-act="hold">暂存</button>
+  </div>
+
+  <p class="hint tetris-hint"><a href="/" class="back-link">← 返回游戏大厅</a> · 消满 10 行升一级，速度越来越快</p>
+
+  <script src="js/tetris/core.js"></script>
+  <script src="js/tetris/main.js"></script>
+</body>
+</html>

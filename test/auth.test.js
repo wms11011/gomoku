@@ -70,10 +70,13 @@ async function main() {
     const cookie = (r.headers.get('set-cookie') || '').split(';')[0];
     assert.ok(/^gomoku_auth=[0-9a-f]{64}$/.test(cookie), `应下发签名 Cookie，实际: ${cookie}`);
 
-    // 5. 凭 Cookie 访问 → 真正的游戏页
+    // 5. 凭 Cookie 访问 → 游戏大厅与五子棋页面
     r = await fetch(`${BASE}/`, { headers: { Cookie: cookie } });
     body = await r.text();
-    assert.ok(body.includes('<canvas'), '验证通过应返回游戏页面');
+    assert.ok(body.includes('游戏大厅'), '验证通过应返回游戏大厅');
+    r = await fetch(`${BASE}/gomoku.html`, { headers: { Cookie: cookie } });
+    body = await r.text();
+    assert.ok(body.includes('<canvas'), '验证通过应返回五子棋页面');
 
     // 6. 篡改的 Cookie → 仍被拦截
     const badCookie = cookie.slice(0, -2) + (cookie.endsWith('aa') ? 'bb' : 'aa');
