@@ -401,6 +401,8 @@
   }
 
   // ---------- 流程 ----------
+  let deathTimer = null;
+
   function newGame() {
     state = Core.createGame();
     acc = 0;
@@ -408,6 +410,8 @@
     floaters = [];
     shake = 0;
     deathFlash = 0;
+    wasAlive = true;              // 重置死亡检测，否则第二局起不再弹结束画面
+    clearTimeout(deathTimer);     // 清掉上一局的延迟弹窗，防止盖到新局
   }
 
   function startGame() {
@@ -428,7 +432,7 @@
       best = state.score;
       try { localStorage.setItem('snake-best', String(best)); } catch { /* 忽略 */ }
     }
-    setTimeout(() => {
+    deathTimer = setTimeout(() => {
       $('over-text').textContent = `得分 ${state.score} · 吃掉 ${state.eaten} 颗豆`;
       overlays.over.classList.remove('hidden');
     }, 500);
@@ -454,8 +458,9 @@
           if (gained >= 30) sfx.bonus(); else sfx.eat();
         }
       }
-      if (!state.alive && wasAlive) { wasAlive = false; onDeath(); }
     }
+    // 死亡检测放在外层，任何路径的死亡都不会漏掉
+    if (playing && !state.alive && wasAlive) { wasAlive = false; onDeath(); }
     render(now);
     requestAnimationFrame(loop);
   }
