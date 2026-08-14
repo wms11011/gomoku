@@ -601,8 +601,7 @@ body {
 
 #snake-board {
   display: block;
-  width: min(480px, calc(100vw - 40px));
-  height: auto;
+  margin: 0 auto;
   touch-action: none;
 }
 
@@ -693,12 +692,6 @@ body {
   .snake-header h1 { font-size: 26px; letter-spacing: 6px; }
   .snake-header { margin-bottom: 8px; }
   .snake-header .subtitle { display: none; }
-  #snake-board {
-    width: auto;
-    height: calc(100dvh - 380px);
-    min-height: 280px;
-    max-width: calc(100vw - 24px);
-  }
   #joystick-zone { height: 170px; }
   .snake-hint { display: none; }
 }
@@ -706,17 +699,19 @@ body {
 /* 大厅贪吃蛇图标 */
 .snake-icon span {
   position: absolute;
-  width: 22px; height: 22px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #b8fbff, #37f3ff 60%, #0f7a9c);
-  box-shadow: 0 0 12px rgba(55, 243, 255, 0.8);
+  width: 24px; height: 24px;
+  border-radius: 30%;
+  background: linear-gradient(180deg, #ffcf6e, #ff913d 60%, #e0552b);
+  box-shadow: inset 0 2px 2px rgba(255,255,255,0.5), 0 3px 6px rgba(0,0,0,0.4);
 }
-.snake-icon span:nth-child(1) { top: 22px; left: 22px; }
-.snake-icon span:nth-child(2) { top: 34px; left: 38px; background: radial-gradient(circle at 35% 30%, #8fd3ff, #2b6fe0 60%, #1e4694); }
-.snake-icon span:nth-child(3) { top: 50px; left: 54px; background: radial-gradient(circle at 35% 30%, #d0a8ff, #9b5de5 60%, #5c2e99); }
+.snake-icon span:nth-child(1) { top: 20px; left: 20px; }
+.snake-icon span:nth-child(2) { top: 36px; left: 38px; background: linear-gradient(180deg, #ffb154, #f5722a 60%, #c93f2e); }
+.snake-icon span:nth-child(3) { top: 52px; left: 56px; background: linear-gradient(180deg, #ff913d, #e0552b 60%, #a8321f); }
 .snake-icon span:nth-child(4) {
-  top: 26px; left: 56px;
-  width: 12px; height: 12px;
-  background: radial-gradient(circle at 35% 30%, #fff, #ff4fd8 60%, #7a1060);
-  box-shadow: 0 0 10px rgba(255, 79, 216, 0.9);
+  top: 24px; left: 58px;
+  width: 13px; height: 13px;
+  border-radius: 3px;
+  background: #4ff3d8;
+  border: 2px solid #fff;
+  box-shadow: 0 0 10px rgba(79, 243, 216, 0.9);
 }

@@ -63,10 +63,15 @@
       : null;
   }
 
-  /** 转向：禁止相对当前移动方向 180° 掉头 */
+  /**
+   * 转向：与「实际移动方向」比较，禁止 180° 掉头。
+   * 连续快速输入以最后一次有效输入为准（每步只保留一个 pending）：
+   * 例如向右移动时快速输入「上→左」，左会被拒绝（防止掉头自杀）；
+   * 在边缘快速修正「下→上」时上会被接受（防止修正无效撞墙）。
+   */
   function setDir(state, dx, dy) {
-    const cur = state.pending || state.dir;
-    if (cur.x === -dx && cur.y === -dy) return false; // 直接掉头，拒绝
+    const cur = state.dir;
+    if (cur.x === -dx && cur.y === -dy) return false; // 相对移动方向掉头，拒绝
     if (cur.x === dx && cur.y === dy) return false;   // 同向，无效
     state.pending = { x: dx, y: dy };
     return true;

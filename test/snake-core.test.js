@@ -126,3 +126,28 @@ const { GRID } = S;
 }
 
 console.log('✔ 贪吃蛇核心逻辑测试全部通过');
+
+// ---- 快速连续输入：以最后一次有效输入为准 ----
+{
+  const s = S.createGame(() => 0.5);
+  // 向右移动时快速输入「上→左」：左与移动方向相反被拒绝，最终走上
+  assert.strictEqual(S.setDir(s, 0, -1), true);
+  assert.strictEqual(S.setDir(s, -1, 0), false, '快速「上→左」时左应被拒绝');
+  S.step(s);
+  assert.deepStrictEqual(s.dir, { x: 0, y: -1 }, '应执行上而不是左');
+  assert.strictEqual(s.alive, true, '不会因掉头自杀');
+}
+
+// ---- 边缘快速修正：修正输入必须生效 ----
+{
+  const s = S.createGame(() => 0.5);
+  // 蛇在底边上方一行向右移动，玩家误推下后立刻修正为上
+  s.snake = [{ x: 5, y: GRID - 2 }, { x: 4, y: GRID - 2 }, { x: 3, y: GRID - 2 }];
+  s.dir = { x: 1, y: 0 };
+  s.pending = null;
+  assert.strictEqual(S.setDir(s, 0, 1), true, '下应被接受');
+  assert.strictEqual(S.setDir(s, 0, -1), true, '随后修正为上必须被接受');
+  S.step(s);
+  assert.deepStrictEqual(s.dir, { x: 0, y: -1 }, '最终执行上');
+  assert.strictEqual(s.alive, true, '修正后不应撞墙');
+}

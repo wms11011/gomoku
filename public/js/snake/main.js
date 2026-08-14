@@ -1,7 +1,8 @@
 /**
- * 贪吃蛇渲染与交互：绝区零「蛇对蛇」霓虹街机风。
- * 深青蓝夜空 + 霓虹网格 + 发光蛇身 + CRT 扫描线；
+ * 贪吃蛇渲染与交互：还原绝区零「蛇对蛇」画风 ——
+ * 明亮天蓝竞技场 + 橙色果冻方块蛇 + 像素纸屑粒子 + 街头潮流 UI。
  * 操控：虚拟模拟摇杆（浮动着点）+ 键盘方向键/WASD。
+ * 画布由 JS 按视口自适应，保证手机上一屏放下无需滚动。
  * 游戏逻辑全部在 js/snake/core.js。
  */
 (function () {
@@ -14,17 +15,18 @@
   const CELL = 28;
   const SIZE = GRID * CELL; // 672 逻辑像素
 
-  // ---------- 配色（霓虹） ----------
-  const NEON = {
-    bg0: '#0a0e24', bg1: '#05070f',
-    grid: 'rgba(64, 140, 255, 0.10)',
-    snakeHead: '#b8fbff',
-    snakeA: '#37f3ff',   // 头部亮青
-    snakeB: '#2b6fe0',   // 中段蓝
-    snakeC: '#9b5de5',   // 尾部紫
-    food: '#ff4fd8',     // 魔豆品红
-    bonus: '#ffd94f',    // 金豆
-    text: '#8ff6ff',
+  // ---------- 配色（绝区零风：明亮蓝场 + 橙果冻蛇） ----------
+  const COL = {
+    arena0: '#53b2ff',  // 场地中心亮蓝
+    arena1: '#2470e0',  // 中场蓝
+    arena2: '#0e3a92',  // 边缘深蓝
+    grid: 'rgba(255,255,255,.10)',
+    snakeHead: '#ffd97a',
+    snake: ['#ffcf6e', '#ffb154', '#ff913d', '#f5722a', '#e0552b', '#c93f2e'],
+    food: '#4ff3d8',
+    bonus: '#ffd94f',
+    hud: '#ffd94f',
+    confetti: ['#ffd94f', '#4ff3d8', '#ff4fd8', '#8fb8ff', '#ff9a3d', '#a6ff6e'],
   };
 
   // ---------- DOM ----------
@@ -46,7 +48,7 @@
   try { best = Number(localStorage.getItem('snake-best')) || 0; } catch { /* 忽略 */ }
 
   // ---------- 特效状态 ----------
-  let particles = [];   // {x,y,vx,vy,life,maxLife,color,size}
+  let particles = [];   // 方块纸屑 {x,y,vx,vy,rot,vr,life,maxLife,color,size}
   let floaters = [];    // {text,x,y,t,color}
   let shake = 0;
   let deathFlash = 0;
@@ -83,190 +85,215 @@
     start: () => [330, 440, 660].forEach((f, i) => tone(f, 0.09, i * 0.06, 'triangle', 0.08)),
   };
 
-  // ---------- 画布初始化 ----------
-  function setupCanvas() {
+  // ---------- 画布尺寸自适应（一屏放下） ----------
+  function isTouch() {
+    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  }
+
+  function fitCanvas() {
     const dpr = window.devicePixelRatio || 1;
     canvas.width = SIZE * dpr;
     canvas.height = SIZE * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const header = document.querySelector('.snake-header');
+    const hint = document.querySelector('.snake-hint');
+    const used =
+      (header ? header.offsetHeight : 0) +
+      (isTouch() ? joyZone.offsetHeight + 14 : 0) +
+      (hint && getComputedStyle(hint).display !== 'none' ? hint.offsetHeight : 0) +
+      56; // body 上下 padding + 边距余量
+    const availH = window.innerHeight - used;
+    const size = Math.max(220, Math.min(520, window.innerWidth - 24, availH));
+    canvas.style.width = size + 'px';
+    canvas.style.height = size + 'px';
   }
+
+  window.addEventListener('resize', fitCanvas);
+  window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 200));
 
   function cellCenter(c) {
     return { x: c.x * CELL + CELL / 2, y: c.y * CELL + CELL / 2 };
   }
 
-  // ---------- 背景 ----------
-  const dust = Array.from({ length: 30 }, (_, i) => ({
-    x: (i * 173.3) % SIZE, y: (i * 97.7) % SIZE,
-    r: 0.6 + (i % 3) * 0.5, speed: 6 + (i % 5) * 4,
-  }));
-
+  // ---------- 竞技场背景 ----------
   function drawBackground(t) {
-    const g = ctx.createLinearGradient(0, 0, 0, SIZE);
-    g.addColorStop(0, NEON.bg0);
-    g.addColorStop(1, NEON.bg1);
+    // 中心亮蓝的径向竞技场
+    const g = ctx.createRadialGradient(SIZE / 2, SIZE / 2, SIZE * 0.08, SIZE / 2, SIZE / 2, SIZE * 0.75);
+    g.addColorStop(0, COL.arena0);
+    g.addColorStop(0.55, COL.arena1);
+    g.addColorStop(1, COL.arena2);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, SIZE, SIZE);
 
-    // 漂浮尘埃
-    ctx.fillStyle = 'rgba(120,200,255,.16)';
-    for (const d of dust) {
-      const y = (d.y + t * d.speed / 1000) % SIZE;
-      ctx.beginPath();
-      ctx.arc(d.x, y, d.r, 0, Math.PI * 2);
-      ctx.fill();
+    // 慢速旋转的光带（速度感）
+    ctx.save();
+    ctx.translate(SIZE / 2, SIZE / 2);
+    ctx.rotate(t / 6000);
+    ctx.fillStyle = 'rgba(255,255,255,.045)';
+    for (let i = 0; i < 3; i++) {
+      ctx.rotate((Math.PI * 2) / 3);
+      ctx.fillRect(-SIZE * 0.06, -SIZE, SIZE * 0.12, SIZE * 2);
     }
+    ctx.restore();
 
-    // 霓虹网格
-    ctx.strokeStyle = NEON.grid;
+    // 浅色网格
+    ctx.strokeStyle = COL.grid;
     ctx.lineWidth = 1;
     for (let i = 1; i < GRID; i++) {
       ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, SIZE); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(SIZE, i * CELL); ctx.stroke();
     }
-
-    // 四角暗角
-    const v = ctx.createRadialGradient(SIZE / 2, SIZE / 2, SIZE * 0.35, SIZE / 2, SIZE / 2, SIZE * 0.75);
-    v.addColorStop(0, 'rgba(0,0,0,0)');
-    v.addColorStop(1, 'rgba(0,0,0,0.42)');
-    ctx.fillStyle = v;
-    ctx.fillRect(0, 0, SIZE, SIZE);
   }
 
-  function drawScanlines() {
-    ctx.fillStyle = 'rgba(0,0,0,0.06)';
-    for (let y = 0; y < SIZE; y += 4) ctx.fillRect(0, y, SIZE, 1.5);
+  // ---------- 果冻方块（伪 3D 圆角立方体） ----------
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
   }
 
-  // ---------- 食物 ----------
+  function drawJelly(px, py, size, color, opts = {}) {
+    const pad = size * 0.06;
+    const x = px + pad, y = py + pad, s = size - pad * 2;
+    const r = s * 0.32;
+    ctx.save();
+    if (opts.alpha !== undefined) ctx.globalAlpha = opts.alpha;
+    if (opts.glow) { ctx.shadowColor = color; ctx.shadowBlur = size * 0.4; }
+
+    // 主体渐变（上亮下暗）
+    roundRect(ctx, x, y, s, s, r);
+    const g = ctx.createLinearGradient(x, y, x, y + s);
+    g.addColorStop(0, opts.light || '#ffffff55');
+    g.addColorStop(0.18, color);
+    g.addColorStop(1, opts.dark || 'rgba(0,0,0,.25)');
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // 顶部果冻高光
+    roundRect(ctx, x + s * 0.16, y + s * 0.10, s * 0.68, s * 0.38, r * 0.6);
+    const gloss = ctx.createLinearGradient(x, y, x, y + s * 0.48);
+    gloss.addColorStop(0, 'rgba(255,255,255,.5)');
+    gloss.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gloss;
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // ---------- 食物（像素魔豆） ----------
   function drawFood(t) {
     if (state.food) {
       const { x, y } = cellCenter(state.food);
-      const pulse = 1 + Math.sin(t / 200) * 0.12;
-      const r = CELL * 0.30 * pulse;
+      const bob = Math.sin(t / 260) * 2.5;
+      const s = CELL * 0.52;
       ctx.save();
-      ctx.shadowColor = NEON.food;
-      ctx.shadowBlur = 18;
-      const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
-      g.addColorStop(0, '#ffffff');
-      g.addColorStop(0.35, NEON.food);
-      g.addColorStop(1, '#7a1060');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
-      // 脉动光环
-      ctx.globalAlpha = 0.5 + Math.sin(t / 200) * 0.3;
-      ctx.strokeStyle = NEON.food;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(x, y, r + 5 + Math.sin(t / 200) * 3, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.shadowColor = COL.food;
+      ctx.shadowBlur = 16;
+      // 白边像素方块
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x - s / 2 - 2, y - s / 2 - 2 + bob, s + 4, s + 4);
+      ctx.fillStyle = COL.food;
+      ctx.fillRect(x - s / 2, y - s / 2 + bob, s, s);
+      // 高光点
+      ctx.fillStyle = 'rgba(255,255,255,.85)';
+      ctx.fillRect(x - s / 4, y - s / 4 + bob, s / 3, s / 3);
       ctx.restore();
     }
 
     if (state.bonus) {
       const { x, y } = cellCenter(state.bonus);
-      const blink = state.bonus.ttl < 12 ? (Math.sin(t / 80) > 0 ? 1 : 0.25) : 1;
-      const r = CELL * 0.34;
+      const blink = state.bonus.ttl < 12 ? (Math.sin(t / 80) > 0 ? 1 : 0.3) : 1;
+      const bob = Math.sin(t / 200) * 3;
+      const s = CELL * 0.6;
       ctx.save();
       ctx.globalAlpha = blink;
-      ctx.shadowColor = NEON.bonus;
-      ctx.shadowBlur = 22;
-      const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
-      g.addColorStop(0, '#fffbe0');
-      g.addColorStop(0.4, NEON.bonus);
-      g.addColorStop(1, '#8a6a10');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.shadowColor = COL.bonus;
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x - s / 2 - 2, y - s / 2 - 2 + bob, s + 4, s + 4);
+      ctx.fillStyle = COL.bonus;
+      ctx.fillRect(x - s / 2, y - s / 2 + bob, s, s);
+      ctx.fillStyle = 'rgba(255,255,255,.9)';
+      ctx.fillRect(x - s / 4, y - s / 4 + bob, s / 3, s / 3);
       // 剩余时间环
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = 'rgba(255,240,180,.9)';
+      ctx.strokeStyle = 'rgba(255,255,255,.9)';
       ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.arc(x, y, r + 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (state.bonus.ttl / Core.BONUS_TTL));
+      ctx.arc(x, y + bob, s * 0.85, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (state.bonus.ttl / Core.BONUS_TTL));
       ctx.stroke();
       ctx.restore();
     }
   }
 
-  // ---------- 蛇 ----------
-  function bodyColor(i, n) {
-    // 头青 → 中蓝 → 尾紫
-    const t = n <= 1 ? 0 : i / (n - 1);
-    const lerp = (a, b) => Math.round(a + (b - a) * t);
-    const c1 = [55, 243, 255], c2 = [43, 111, 224], c3 = [155, 93, 229];
-    const m = t < 0.5
-      ? [lerp(c1[0], c2[0], t * 2), lerp(c1[1], c2[1], t * 2), lerp(c1[2], c2[2], t * 2)]
-      : [lerp(c2[0], c3[0], (t - 0.5) * 2), lerp(c2[1], c3[1], (t - 0.5) * 2), lerp(c2[2], c3[2], (t - 0.5) * 2)];
-    return `rgb(${m[0]},${m[1]},${m[2]})`;
-  }
-
+  // ---------- 果冻蛇 ----------
   function drawSnake(t) {
     const n = state.snake.length;
     const pts = state.snake.map(cellCenter);
 
-    // 发光身体路径
+    // 连接底线（让相邻节连起来）
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.shadowColor = NEON.snakeA;
-    ctx.shadowBlur = 16;
-    ctx.strokeStyle = 'rgba(55,243,255,.35)';
-    ctx.lineWidth = CELL * 0.72;
+    ctx.strokeStyle = COL.snake[Math.min(3, COL.snake.length - 1)];
+    ctx.globalAlpha = 0.65;
+    ctx.lineWidth = CELL * 0.6;
     ctx.beginPath();
     ctx.moveTo(pts[0].x, pts[0].y);
     for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
     ctx.stroke();
     ctx.restore();
 
-    // 逐节身体（渐变色，向尾部微缩）
+    // 逐节果冻方块（头→尾颜色渐变、微缩）
     for (let i = n - 1; i >= 1; i--) {
       const p = pts[i];
-      const r = CELL * 0.34 * (1 - 0.25 * (i / n));
-      ctx.fillStyle = bodyColor(i, n);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx.fill();
+      const shrink = 1 - 0.3 * (i / Math.max(8, n));
+      const size = CELL * 0.94 * shrink;
+      const ci = Math.min(Math.floor(i / Math.max(1, n / COL.snake.length)), COL.snake.length - 1);
+      drawJelly(p.x - size / 2, p.y - size / 2, size, COL.snake[ci], { glow: i < 4 });
     }
 
-    // 头部
+    // 头部（更大更亮）
     const head = pts[0];
-    const d = state.dir;
-    ctx.save();
-    ctx.shadowColor = NEON.snakeHead;
-    ctx.shadowBlur = 20;
-    const hg = ctx.createRadialGradient(head.x - 4, head.y - 4, 2, head.x, head.y, CELL * 0.46);
-    hg.addColorStop(0, '#ffffff');
-    hg.addColorStop(0.5, NEON.snakeHead);
-    hg.addColorStop(1, NEON.snakeA);
-    ctx.fillStyle = hg;
-    ctx.beginPath();
-    ctx.arc(head.x, head.y, CELL * 0.44, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    const hs = CELL * 1.06;
+    drawJelly(head.x - hs / 2, head.y - hs / 2, hs, COL.snakeHead, { glow: true, dark: '#e8a13c' });
 
-    // 眼睛（按朝向偏移）
-    const ex = d.y !== 0 ? CELL * 0.17 : 0;   // 垂直移动时眼睛横向排布
-    const ey = d.x !== 0 ? CELL * 0.17 : 0;
-    const fx = d.x * CELL * 0.10, fy = d.y * CELL * 0.10;
-    ctx.fillStyle = '#0a1030';
+    // 卡通大眼睛（白色椭圆 + 黑瞳孔，按朝向排布）
+    const d = state.dir;
+    const along = CELL * 0.16;   // 朝前偏移
+    const apart = CELL * 0.20;   // 两眼间距
+    const ex = d.y !== 0 ? apart : 0;
+    const ey = d.x !== 0 ? apart : 0;
     for (const s of [-1, 1]) {
+      const cx = head.x + d.x * along + ex * s;
+      const cy = head.y + d.y * along + ey * s;
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.arc(head.x + fx + ex * s, head.y + fy + ey * s, CELL * 0.075, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy, CELL * 0.13, CELL * 0.17, d.y !== 0 ? 0 : Math.PI / 2, 0, Math.PI * 2);
       ctx.fill();
+      ctx.fillStyle = '#1c2233';
+      ctx.beginPath();
+      ctx.arc(cx + d.x * CELL * 0.05, cy + d.y * CELL * 0.05, CELL * 0.06, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
 
     // 偶尔吐信子
     if (Math.sin(t / 600) > 0.92) {
       ctx.strokeStyle = '#ff5a5a';
-      ctx.lineWidth = 2;
-      const tx = head.x + d.x * CELL * 0.5, ty = head.y + d.y * CELL * 0.5;
-      const px = d.y !== 0 ? 3 : 0, py = d.x !== 0 ? 3 : 0;
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      const tx = head.x + d.x * CELL * 0.62, ty = head.y + d.y * CELL * 0.62;
+      const px = d.y !== 0 ? 3.5 : 0, py = d.x !== 0 ? 3.5 : 0;
       ctx.beginPath();
-      ctx.moveTo(head.x + d.x * CELL * 0.36, head.y + d.y * CELL * 0.36);
+      ctx.moveTo(head.x + d.x * CELL * 0.45, head.y + d.y * CELL * 0.45);
       ctx.lineTo(tx, ty);
       ctx.moveTo(tx, ty); ctx.lineTo(tx + d.x * 5 - px, ty + d.y * 5 - py);
       ctx.moveTo(tx, ty); ctx.lineTo(tx + d.x * 5 + px, ty + d.y * 5 + py);
@@ -275,19 +302,21 @@
   }
 
   // ---------- 特效 ----------
-  function spawnEatFx(cell, color, score) {
+  function spawnEatFx(cell, score) {
     const { x, y } = cellCenter(cell);
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 14; i++) {
       const a = Math.random() * Math.PI * 2;
       const sp = 1.5 + Math.random() * 3.5;
       particles.push({
         x, y,
-        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-        life: 0, maxLife: 30 + Math.random() * 15,
-        color, size: 2 + Math.random() * 3,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1,
+        rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.3,
+        life: 0, maxLife: 32 + Math.random() * 16,
+        color: COL.confetti[(Math.random() * COL.confetti.length) | 0],
+        size: 3 + Math.random() * 4,
       });
     }
-    floaters.push({ text: `+${score}`, x, y: y - 8, t: 0, color });
+    floaters.push({ text: `+${score}`, x, y: y - 10, t: 0, color: score >= 30 ? COL.bonus : '#ffffff' });
   }
 
   function drawFx() {
@@ -295,14 +324,18 @@
       const p = particles[i];
       p.life++;
       p.x += p.vx; p.y += p.vy;
-      p.vx *= 0.96; p.vy *= 0.96;
+      p.vy += 0.15;
+      p.rot += p.vr;
       const a = 1 - p.life / p.maxLife;
       if (a <= 0) { particles.splice(i, 1); continue; }
+      ctx.save();
       ctx.globalAlpha = a;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
       ctx.fillStyle = p.color;
-      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      ctx.restore();
     }
-    ctx.globalAlpha = 1;
 
     ctx.textAlign = 'center';
     for (let i = floaters.length - 1; i >= 0; i--) {
@@ -310,33 +343,36 @@
       f.t++;
       const a = 1 - f.t / 50;
       if (a <= 0) { floaters.splice(i, 1); continue; }
+      ctx.save();
       ctx.globalAlpha = a;
-      ctx.font = 'bold 20px "SF Mono", Consolas, monospace';
+      ctx.font = 'bold 22px "SF Mono", Consolas, monospace';
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'rgba(20,30,70,.9)';
+      ctx.strokeText(f.text, f.x, f.y - f.t * 0.9);
       ctx.fillStyle = f.color;
-      ctx.shadowColor = f.color;
-      ctx.shadowBlur = 10;
       ctx.fillText(f.text, f.x, f.y - f.t * 0.9);
-      ctx.shadowBlur = 0;
+      ctx.restore();
     }
-    ctx.globalAlpha = 1;
   }
 
-  // ---------- HUD ----------
+  // ---------- HUD（橙黄像素风大字） ----------
+  function hudText(text, x, y, align) {
+    ctx.font = 'bold 19px "SF Mono", Consolas, monospace';
+    ctx.textAlign = align;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(20,30,70,.85)';
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = COL.hud;
+    ctx.fillText(text, x, y);
+  }
+
   function drawHud() {
-    ctx.save();
-    ctx.font = 'bold 18px "SF Mono", Consolas, monospace';
-    ctx.textAlign = 'left';
-    ctx.fillStyle = NEON.text;
-    ctx.shadowColor = NEON.snakeA;
-    ctx.shadowBlur = 8;
-    ctx.fillText(`SCORE ${state.score}`, 14, 26);
-    ctx.textAlign = 'right';
-    ctx.fillText(`BEST ${Math.max(best, state.score)}`, SIZE - 14, 26);
-    // 速度档
+    hudText(`SCORE ${state.score}`, 14, 28, 'left');
+    hudText(`BEST ${Math.max(best, state.score)}`, SIZE - 14, 28, 'right');
     const spd = Math.floor(state.eaten / 5) + 1;
-    ctx.textAlign = 'center';
-    ctx.globalAlpha = 0.7;
-    ctx.fillText(`SPEED ×${spd}`, SIZE / 2, 26);
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    hudText(`×${spd}`, SIZE / 2, 28, 'center');
     ctx.restore();
   }
 
@@ -352,18 +388,15 @@
     drawSnake(t);
     drawFx();
     drawHud();
-    drawScanlines();
     if (deathFlash > 0) {
-      ctx.fillStyle = `rgba(255,40,70,${deathFlash / 20 * 0.35})`;
+      ctx.fillStyle = `rgba(255,60,60,${deathFlash / 20 * 0.3})`;
       ctx.fillRect(0, 0, SIZE, SIZE);
       deathFlash--;
     }
-    // 霓虹边框
-    ctx.strokeStyle = 'rgba(55,243,255,.55)';
-    ctx.lineWidth = 2;
-    ctx.shadowColor = NEON.snakeA;
-    ctx.shadowBlur = 12;
-    ctx.strokeRect(1, 1, SIZE - 2, SIZE - 2);
+    // 深色相框
+    ctx.strokeStyle = '#0a1c4a';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(0, 0, SIZE, SIZE);
     ctx.restore();
   }
 
@@ -414,16 +447,12 @@
         acc -= interval;
         const prevScore = state.score;
         const prevLen = state.snake.length;
-        const ateFood = state.food;
-        const ateBonus = state.bonus;
         Core.step(state);
         if (state.snake.length > prevLen) {
-          // 吃到了：在刚吃的位置爆粒子（新头位置即原食物位置）
           const gained = state.score - prevScore;
-          if (gained === Core.FOOD_SCORE) { spawnEatFx(state.snake[0], NEON.food, gained); sfx.eat(); }
-          else { spawnEatFx(state.snake[0], NEON.bonus, gained); sfx.bonus(); }
+          spawnEatFx(state.snake[0], gained);
+          if (gained >= 30) sfx.bonus(); else sfx.eat();
         }
-        void ateFood; void ateBonus;
       }
       if (!state.alive && wasAlive) { wasAlive = false; onDeath(); }
     }
@@ -448,13 +477,9 @@
   });
 
   // ---------- 虚拟模拟摇杆（浮动着点） ----------
-  const JOY_RADIUS = 46;   // 摇杆头最大偏移
-  const DEAD_ZONE = 12;    // 死区
+  const JOY_RADIUS = 46;
+  const DEAD_ZONE = 12;
   let joy = null;
-
-  function isTouch() {
-    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  }
 
   function showJoystick(x, y) {
     const zr = joyZone.getBoundingClientRect();
@@ -472,7 +497,6 @@
     joyKnob.style.transform = `translate(calc(-50% + ${nx * clamped}px), calc(-50% + ${ny * clamped}px))`;
 
     if (len > DEAD_ZONE && playing && state.alive) {
-      // 主轴吸附：模拟手柄十字方向
       if (Math.abs(dx) > Math.abs(dy)) {
         if (Core.setDir(state, dx > 0 ? 1 : -1, 0)) sfx.turn();
         joyArrow.style.transform = `translate(-50%,-50%) rotate(${dx > 0 ? 90 : -90}deg)`;
@@ -521,14 +545,10 @@
     $('btn-mute').textContent = muted ? '🔇' : '🔊';
   });
 
-  // 页面切后台自动暂停展示（ snake 无暂停态，直接结束当前回合提示 )
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && playing && state.alive) {
-      // 不断线重开，仅提示；蛇局无暂停，避免后台死亡：直接冻结 acc
-      acc = 0;
-    }
+    if (document.hidden) acc = 0;
   });
 
-  setupCanvas();
+  fitCanvas();
   requestAnimationFrame((t) => { lastTime = t; loop(t); });
 })();
