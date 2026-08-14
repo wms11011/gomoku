@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>贪吃蛇 · Snake Duel</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐍</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="snake-page">
+  <header class="site-header snake-header">
+    <h1>贪吃蛇</h1>
+    <p class="subtitle">S N A K E &nbsp; D U E L</p>
+  </header>
+
+  <main class="snake-layout">
+    <div class="snake-board-wrap">
+      <canvas id="snake-board"></canvas>
+      <button id="btn-mute" class="mute-btn" title="音效开关">🔊</button>
+
+      <div class="tetris-overlay" id="overlay-start">
+        <div class="overlay-card">
+          <h3>贪吃蛇</h3>
+          <p>键盘：方向键 / WASD 控制<br>手机：按住下方摇杆区域，滑动控制方向</p>
+          <p>吃魔豆 +10 · 金豆限时 +30 · 越吃越快</p>
+          <button class="btn primary" id="btn-start">开始游戏</button>
+        </div>
+      </div>
+
+      <div class="tetris-overlay hidden" id="overlay-over">
+        <div class="overlay-card">
+          <h3>游戏结束</h3>
+          <p id="over-text">得分 0</p>
+          <button class="btn primary" id="btn-again">再来一局</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="joystick-zone">
+      <span class="joy-hint">按住此区域滑动控制方向</span>
+      <div id="joystick-base">
+        <div id="joystick-arrow">▲</div>
+        <div id="joystick-knob"></div>
+      </div>
+    </div>
+  </main>
+
+  <p class="hint snake-hint"><a href="/" class="back-link">← 返回游戏大厅</a> · 撞墙或撞到自己就结束</p>
+
+  <script src="js/snake/core.js"></script>
+  <script src="js/snake/main.js"></script>
+</body>
+</html>
