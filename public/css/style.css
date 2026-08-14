@@ -702,23 +702,34 @@ body {
   top: 14px;
   left: 14px;
   z-index: 60;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  border: 1px solid var(--card-border);
-  background: rgba(255, 255, 255, 0.07);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 179, 106, 0.55);
+  background: rgba(26, 24, 18, 0.72);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: var(--gold-bright);
-  font-size: 21px;
-  line-height: 1;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 1px;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 14px rgba(216, 179, 106, 0.18);
   transition: all 0.18s ease;
 }
 
+.back-home-btn .back-home-arrow {
+  font-size: 18px;
+  line-height: 1;
+}
+
 .back-home-btn:hover {
-  background: rgba(216, 179, 106, 0.25);
+  background: rgba(216, 179, 106, 0.28);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5), 0 0 20px rgba(216, 179, 106, 0.35);
   transform: translateY(-1px);
 }
 

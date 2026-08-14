@@ -5,12 +5,12 @@
 (function () {
   'use strict';
 
-  // 悬浮返回按钮（左上角）
+  // 悬浮返回按钮（左上角，胶囊形带文字）
   const btn = document.createElement('button');
   btn.className = 'back-home-btn';
   btn.title = '返回游戏大厅';
   btn.setAttribute('aria-label', '返回游戏大厅');
-  btn.textContent = '←';
+  btn.innerHTML = '<span class="back-home-arrow">←</span> 返回大厅';
 
   // 二次确认弹窗
   const modal = document.createElement('div');
