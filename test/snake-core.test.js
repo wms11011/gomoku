@@ -112,7 +112,7 @@ const { GRID } = S;
   s.eaten = 10;
   assert.ok(S.intervalFor(s) < i0, '吃 10 颗后应提速');
   s.eaten = 1000;
-  assert.strictEqual(S.intervalFor(s), 70, '速度有下限 70ms');
+  assert.strictEqual(S.intervalFor(s), 90, '速度有下限 90ms');
 }
 
 // ---- 棋盘几乎占满时食物不落蛇身 ----

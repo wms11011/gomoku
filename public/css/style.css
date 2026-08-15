@@ -410,8 +410,7 @@ body {
 
 #tetris-board {
   display: block;
-  width: min(320px, calc(100vw - 40px));
-  height: auto;
+  margin: 0 auto;
   touch-action: none;
 }
 
@@ -542,16 +541,6 @@ body {
 
 /* ---------- 俄罗斯方块 · 手机操控优化 ---------- */
 @media (max-width: 640px) {
-  /* 棋盘按视口高度缩放，保证下棋区与底部按钮同屏可见 */
-  #tetris-board {
-    width: auto;
-    height: calc(100vh - 330px);
-    height: calc(100dvh - 330px);
-    min-height: 300px;
-    max-width: calc(100vw - 40px);
-    margin: 0 auto;
-  }
-
   /* 触屏按钮固定到视口底部，不随页面滚动 */
   .touch-controls {
     position: fixed;
@@ -568,8 +557,8 @@ body {
     justify-content: space-between;
   }
 
-  .touch-controls button { width: 52px; height: 52px; font-size: 20px; flex: none; }
-  .touch-controls [data-act="hold"] { width: 58px; }
+  .touch-controls button { width: auto; max-width: 54px; height: 52px; font-size: 20px; flex: 1 1 0; min-width: 0; }
+  .touch-controls [data-act="hold"] { width: auto; max-width: 60px; }
 
   /* 给固定按钮条让出空间 */
   body.tetris-page { padding-bottom: 88px; }

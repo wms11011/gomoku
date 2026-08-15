@@ -89,14 +89,30 @@
   };
 
   // ---------- 画布初始化 ----------
-  function setupCanvas() {
+  /** 画布尺寸自适应：手机上棋盘按视口剩余空间缩放，保证一屏放下 */
+  function fitCanvas() {
     const dpr = window.devicePixelRatio || 1;
     canvas.width = BOARD_W * dpr;
     canvas.height = BOARD_H * dpr;
-    canvas.style.width = BOARD_W + 'px';
-    canvas.style.height = BOARD_H + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const header = document.querySelector('.tetris-header');
+    const hint = document.querySelector('.tetris-hint');
+    const touchVisible = !touch.classList.contains('hidden');
+    const used =
+      (header ? header.offsetHeight : 0) +
+      (touchVisible ? touch.offsetHeight : 0) +
+      (hint && getComputedStyle(hint).display !== 'none' ? hint.offsetHeight : 0) +
+      64; // body 上下 padding + 各间距余量
+    const availH = window.innerHeight - used;
+    // 宽高比 1:2；同时受视口宽度约束
+    const h = Math.max(280, Math.min(availH, (window.innerWidth - 24) * 2, BOARD_H));
+    canvas.style.height = h + 'px';
+    canvas.style.width = (h / 2) + 'px';
   }
+
+  window.addEventListener('resize', fitCanvas);
+  window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 200));
 
   // ---------- 伪 3D 方块 ----------
   function roundRect(c, x, y, w, h, r) {
@@ -591,7 +607,7 @@
     requestAnimationFrame(loop);
   }
 
-  setupCanvas();
+  fitCanvas();
   refreshHud();
   requestAnimationFrame((t) => { lastTime = t; loop(t); });
 })();
