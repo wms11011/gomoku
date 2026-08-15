@@ -159,21 +159,47 @@ async function main() {
     B.send({ t: 'restartDecline' });
     await A.waitState(m => m.flash && m.flash.msg.includes('拒绝'), 5000, 'A 收到拒绝通知');
 
-    // ---- 断线：A 应看到白方座位空出 ----
+    // ---- 掉线：座位保留（宽限期），A 看到对手离线而非离开 ----
     B.ws.close();
-    await A.waitState(m => m.players.black && !m.players.white, 5000, 'A 看到对手离开');
-    console.log(`  [${KIND}] 断线通知正常`);
+    await A.waitState(m => m.players.white && m.online.white === false, 5000, 'A 看到对手离线');
+    console.log(`  [${KIND}] 掉线离线标记正常`);
 
     // ---- 断线重连恢复座位 ----
     const B2 = makeClient('B2', 'cid-bob');
     await new Promise(r => B2.ws.on('open', r));
     B2.send({ t: 'join', room: code });
     await B2.waitState(m => m.you === 2 && m.players.black && m.players.white, 5000, 'B2 恢复座位');
-    await A.waitState(m => m.players.black && m.players.white, 5000, 'A 看到对手加入');
+    await A.waitState(m => m.online.white === true, 5000, 'A 看到 B2 回来');
     console.log(`  [${KIND}] 断线重连恢复座位正常`);
 
+    // ---- 黑方（房主）掉线重连同样能恢复（修复前会报"房间已满"） ----
     A.ws.close();
+    await B2.waitState(m => m.online.black === false, 5000, 'B2 看到房主离线');
+    const A2 = makeClient('A2', 'cid-alice');
+    await new Promise(r => A2.ws.on('open', r));
+    A2.send({ t: 'join', room: code });
+    await A2.waitState(m => m.you === 1 && m.players.black && m.players.white, 5000, 'A2 恢复黑座位');
+    console.log(`  [${KIND}] 房主掉线重连恢复正常`);
+
+    // ---- 双方都在线时第三方加入报房间已满 ----
+    const C = makeClient('C', 'cid-carol');
+    await new Promise(r => C.ws.on('open', r));
+    C.send({ t: 'join', room: code });
+    await C.waitError('房间已满', 5000, 'C 加入满员房间');
+    C.ws.close();
+
+    // ---- 主动离开立即让出座位，新人可补位 ----
+    A2.send({ t: 'leave' });
+    await B2.waitState(m => !m.players.black, 5000, 'B2 看到黑位空出');
+    const D = makeClient('D', 'cid-dave');
+    await new Promise(r => D.ws.on('open', r));
+    D.send({ t: 'join', room: code });
+    await D.waitState(m => m.you === 1, 5000, 'D 补位黑棋');
+    console.log(`  [${KIND}] 主动离开与补位正常`);
+
+    A2.ws.close();
     B2.ws.close();
+    D.ws.close();
     console.log(`✔ 联机对战集成测试全部通过（${KIND} 后端）`);
   } finally {
     server.kill();

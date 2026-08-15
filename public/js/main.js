@@ -348,13 +348,17 @@
   // ==================== 联机（快照同步协议） ====================
   let lastMoveCount = 0;   // 已同步的手数（用于音效/动画）
   let wasActive = false;   // 上一快照是否双方都在
+  let peerWasOnline = true; // 对手上一快照是否在线
   let lastFlashSeq = 0;    // 已消费的一次性通知
+  let reconnectTimer = null;
 
   function resetNetUi() {
     netRoom = null;
     netActive = false;
     lastMoveCount = 0;
     wasActive = false;
+    peerWasOnline = true;
+    clearTimeout(reconnectTimer);
     els.roomInfo.classList.add('hidden');
     els.restartOffer.classList.add('hidden');
     els.btnCreate.disabled = false;
@@ -392,9 +396,15 @@
     if (!wasActive && netActive) {
       showToast(`对手已加入，你执${myColor === BLACK ? '黑先手' : '白后手'}`);
     } else if (wasActive && !netActive) {
-      showToast('对手已离开，可分享房间号等待其重连');
+      showToast('对手已离开，可分享房间号等待新对手加入');
     }
     wasActive = netActive;
+
+    // 对手在线状态变化提示（掉线但座位仍保留，等待其重连）
+    const peerOnline = msg.online ? (myColor === BLACK ? msg.online.white : msg.online.black) : true;
+    if (netActive && !peerOnline && peerWasOnline) showToast('对手连接中断，等待其重连…');
+    if (netActive && peerOnline && !peerWasOnline) showToast('对手已重连');
+    peerWasOnline = peerOnline;
 
     // 重开协商 UI
     els.restartOffer.classList.toggle('hidden', !msg.restartOffer);
@@ -408,7 +418,7 @@
 
     // 房间信息
     els.roomCode.textContent = msg.code;
-    els.roomStatus.textContent = netActive ? '对局进行中' : '等待对手加入…';
+    els.roomStatus.textContent = !netActive ? '等待对手加入…' : (peerOnline ? '对局进行中' : '对手暂时离线…');
     els.roomInfo.classList.remove('hidden');
 
     updateStatus();
@@ -426,21 +436,27 @@
 
     Net.on('__close', () => {
       if (mode !== 'net') return;
-      if (netRoom) {
-        // 断线自动重连，凭 cid 恢复原座位
-        showToast('连接断开，正在重连…');
-        setTimeout(async () => {
-          try {
-            await Net.connect();
-            Net.send({ t: 'join', room: netRoom });
-          } catch {
-            showToast('重连失败，请检查网络后刷新页面');
-          }
-        }, 1500);
-      } else {
+      if (!netRoom) {
         resetNetUi();
         updateStatus();
+        return;
       }
+      // 断线自动重连（最多 10 次，凭 cid 恢复原座位）
+      showToast('连接断开，正在重连…');
+      let attempts = 0;
+      clearTimeout(reconnectTimer);
+      const tryReconnect = async () => {
+        if (mode !== 'net' || !netRoom) return;
+        attempts++;
+        try {
+          await Net.connect();
+          Net.send({ t: 'join', room: netRoom });
+        } catch {
+          if (attempts < 10) reconnectTimer = setTimeout(tryReconnect, 2000);
+          else showToast('重连失败，请检查网络后刷新页面');
+        }
+      };
+      reconnectTimer = setTimeout(tryReconnect, 1000);
     });
 
     // 心跳保活（防止平台/代理关闭空闲连接）

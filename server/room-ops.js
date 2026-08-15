@@ -18,10 +18,15 @@
 const Core = require('../public/js/game.js');
 const { SIZE, EMPTY, BLACK, WHITE } = Core;
 
+/** 掉线宽限期：座位为掉线玩家保留这么久，超时才会被清扫让出 */
+const OFFLINE_GRACE = 60 * 1000;
+
 function createRoomObj(code, cid) {
   return {
     code, createdAt: Date.now(),
-    black: cid, white: null,
+    black: cid, white: null,           // 座位（按客户端 cid 入座）
+    blackOnline: true, whiteOnline: false,
+    blackOfflineAt: 0, whiteOfflineAt: 0,
     moves: [],
     winner: 0, winLine: null, draw: false,
     restartFrom: null, flash: null,
@@ -41,12 +46,42 @@ function seatOf(room, cid) {
   return 0;
 }
 
-/** 加入（或重连恢复）房间 */
+/** 加入（或重连恢复）房间：按 cid 回座；空位则可坐任意一侧 */
 function applyJoin(room, cid) {
-  if (room.black === cid || room.white === cid) return { resumed: true };
-  if (room.white) return { err: '房间已满' };
-  room.white = cid;
+  if (room.black === cid) { room.blackOnline = true; room.blackOfflineAt = 0; return { resumed: true }; }
+  if (room.white === cid) { room.whiteOnline = true; room.whiteOfflineAt = 0; return { resumed: true }; }
+  if (!room.black) { room.black = cid; room.blackOnline = true; return {}; }
+  if (!room.white) { room.white = cid; room.whiteOnline = true; return {}; }
+  return { err: '房间已满' };
+}
+
+/** 掉线（连接断开）：不撤座位，只标记离线并保留宽限期，等待重连恢复 */
+function applyDisconnect(room, cid) {
+  const now = Date.now();
+  if (room.black === cid) { room.blackOnline = false; room.blackOfflineAt = now; }
+  if (room.white === cid) { room.whiteOnline = false; room.whiteOfflineAt = now; }
   return {};
+}
+
+/** 主动离开（切模式/关闭页面时客户端明示）：立即让出座位 */
+function applyLeave(room, cid) {
+  if (room.black === cid) { room.black = null; room.blackOnline = false; room.blackOfflineAt = 0; }
+  if (room.white === cid) { room.white = null; room.whiteOnline = false; room.whiteOfflineAt = 0; }
+  if (room.restartFrom === cid) room.restartFrom = null;
+  if (!room.black && !room.white) return { delete: true };
+  return {};
+}
+
+/** 清扫离线超时的座位（每次房间操作时惰性执行）。返回是否有座位被清掉 */
+function sweepOffline(room, now = Date.now()) {
+  let changed = false;
+  if (room.black && !room.blackOnline && now - room.blackOfflineAt > OFFLINE_GRACE) {
+    room.black = null; room.blackOfflineAt = 0; changed = true;
+  }
+  if (room.white && !room.whiteOnline && now - room.whiteOfflineAt > OFFLINE_GRACE) {
+    room.white = null; room.whiteOfflineAt = 0; changed = true;
+  }
+  return changed;
 }
 
 function applyMove(room, cid, x, y) {
@@ -97,15 +132,6 @@ function applyDecline(room, cid) {
   return {};
 }
 
-/** 离开/断线。返回 { delete: true } 表示房间已无一人，应销毁 */
-function applyLeave(room, cid) {
-  if (room.black === cid) room.black = null;
-  if (room.white === cid) room.white = null;
-  if (room.restartFrom === cid) room.restartFrom = null;
-  if (!room.black && !room.white) return { delete: true };
-  return {};
-}
-
 /** 针对某个客户端的个性化状态快照 */
 function snapshot(room, cid) {
   return {
@@ -113,6 +139,10 @@ function snapshot(room, cid) {
     code: room.code,
     you: seatOf(room, cid) || null,
     players: { black: !!room.black, white: !!room.white },
+    online: {
+      black: !!room.black && room.blackOnline,
+      white: !!room.white && room.whiteOnline,
+    },
     moves: room.moves,
     winner: room.winner,
     winLine: room.winLine,
@@ -124,6 +154,8 @@ function snapshot(room, cid) {
 }
 
 module.exports = {
-  createRoomObj, applyJoin, applyMove, applyRestart, applyDecline, applyLeave,
+  OFFLINE_GRACE,
+  createRoomObj, applyJoin, applyDisconnect, applyLeave, sweepOffline,
+  applyMove, applyRestart, applyDecline,
   snapshot, seatOf, buildBoard,
 };

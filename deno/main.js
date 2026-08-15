@@ -96,7 +96,8 @@ function detachLocal(socket) {
 }
 
 // ---------- KV 原子操作 ----------
-/** 读-改-写（原子比较并提交，冲突自动重试）；fn 返回 {err} 失败 / {} 成功 / {delete:true} 删除 */
+/** 读-改-写（原子比较并提交，冲突自动重试）；fn 返回 {err} 失败 / {} 成功 / {delete:true} 删除。
+ *  每次操作后惰性清扫离线超时座位；双方均无座位时销毁房间。 */
 async function updateRoom(code, cid, fn) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const res = await kv.get(roomKey(code));
@@ -104,11 +105,13 @@ async function updateRoom(code, cid, fn) {
     const room = structuredClone(res.value);
     const out = fn(room, cid);
     if (out.err) return out;
+    ops.sweepOffline(room);
+    const empty = !room.black && !room.white;
     const atomic = kv.atomic().check(res);
-    if (out.delete) atomic.delete(roomKey(code));
+    if (out.delete || empty) atomic.delete(roomKey(code));
     else atomic.set(roomKey(code), room);
     const commit = await atomic.commit();
-    if (commit.ok) return { room, deleted: !!out.delete };
+    if (commit.ok) return { room, deleted: !!(out.delete || empty) };
   }
   return { err: "操作冲突，请重试" };
 }
@@ -181,10 +184,18 @@ function findCodeBySocket(socket) {
   return null;
 }
 
+/** 客户端明示离开（切模式/换房）：立即让出座位 */
 async function leaveCurrentRoom(socket) {
   const conn = detachLocal(socket);
   if (!conn) return;
   await updateRoom(conn.code, conn.cid, (room, id) => ops.applyLeave(room, id));
+}
+
+/** 连接断开（网络问题）：只标记离线，宽限期内可重连回座 */
+async function disconnectFromRoom(socket) {
+  const conn = detachLocal(socket);
+  if (!conn) return;
+  await updateRoom(conn.code, conn.cid, (room, id) => ops.applyDisconnect(room, id));
 }
 
 function handleSocket(socket) {
@@ -197,8 +208,8 @@ function handleSocket(socket) {
     }
     handleMessage(socket, msg).catch((err) => console.error("处理消息出错:", err));
   };
-  socket.onclose = () => { leaveCurrentRoom(socket).catch(() => {}); };
-  socket.onerror = () => { leaveCurrentRoom(socket).catch(() => {}); };
+  socket.onclose = () => { disconnectFromRoom(socket).catch(() => {}); };
+  socket.onerror = () => { disconnectFromRoom(socket).catch(() => {}); };
 }
 
 // ---------- HTTP 入口 ----------

@@ -127,17 +127,36 @@ function attach(ws, code, cid) {
   send(ws, ops.snapshot(entry.room, cid));
 }
 
-function detach(ws) {
+/** 惰性清扫离线超时座位；双方都无座位时销毁房间。返回 true 表示房间已销毁 */
+function sweepAndMaybeDelete(entry) {
+  ops.sweepOffline(entry.room);
+  if (!entry.room.black && !entry.room.white) {
+    rooms.delete(entry.room.code);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * 连接退出房间。explicit=true 表示客户端明示离开（切模式/关页），立即让出座位；
+ * false 表示连接断开，只标记离线，宽限期内可重连回座。
+ */
+function detach(ws, explicit) {
   const entry = getEntryByWs(ws);
   if (!entry) return;
   for (const c of entry.clients) {
     if (c.ws === ws) entry.clients.delete(c);
   }
-  const out = ops.applyLeave(entry.room, ws._cid);
+  const cid = ws._cid;
   ws._code = null;
   ws._cid = null;
-  if (out.delete) rooms.delete(entry.room.code);
-  else broadcastState(entry); // 通知留下的人：对手走了
+  if (explicit) {
+    const out = ops.applyLeave(entry.room, cid);
+    if (out.delete) { rooms.delete(entry.room.code); return; }
+  } else {
+    ops.applyDisconnect(entry.room, cid);
+  }
+  if (!sweepAndMaybeDelete(entry)) broadcastState(entry); // 通知留下的人：对手状态变了
 }
 
 function handleMessage(ws, raw) {
@@ -151,7 +170,7 @@ function handleMessage(ws, raw) {
       break;
 
     case 'create': {
-      detach(ws); // 先退出旧房间
+      detach(ws, true); // 主动换房，先明示退出旧房间
       const code = genCode();
       rooms.set(code, { room: ops.createRoomObj(code, cid), clients: new Set() });
       attach(ws, code, cid);
@@ -162,11 +181,12 @@ function handleMessage(ws, raw) {
       const code = String(msg.room || '').toUpperCase().trim();
       const entry = rooms.get(code);
       if (!entry) { send(ws, { t: 'error', msg: '房间不存在，请检查房间号' }); return; }
+      if (sweepAndMaybeDelete(entry)) { send(ws, { t: 'error', msg: '房间不存在，请检查房间号' }); return; }
       const out = ops.applyJoin(entry.room, cid);
       if (out.err) { send(ws, { t: 'error', msg: out.err }); return; }
-      detach(ws);
+      detach(ws, true);
       attach(ws, code, cid);
-      if (!out.resumed) broadcastState(entry); // 新对手加入，通知双方
+      broadcastState(entry); // 座位/在线状态变化，通知双方
       break;
     }
 
@@ -191,7 +211,7 @@ function handleMessage(ws, raw) {
     }
 
     case 'leave':
-      detach(ws);
+      detach(ws, true);
       break;
   }
 }
@@ -203,8 +223,8 @@ wss.on('connection', (ws) => {
     try { handleMessage(ws, raw); }
     catch (err) { console.error('处理消息出错:', err); }
   });
-  ws.on('close', () => detach(ws));
-  ws.on('error', () => detach(ws));
+  ws.on('close', () => detach(ws, false));
+  ws.on('error', () => detach(ws, false));
 });
 
 server.listen(PORT, () => {
