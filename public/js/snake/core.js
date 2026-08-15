@@ -10,8 +10,8 @@
   'use strict';
 
   const GRID = 24;
-  const BASE_INTERVAL = 230;   // 初始步进间隔 ms（偏慢，适合上手）
-  const MIN_INTERVAL = 90;
+  const BASE_INTERVAL = 320;   // 初始步进间隔 ms（慢速，适合老人上手）
+  const MIN_INTERVAL = 140;  // 最快速度也保持从容
   const SPEEDUP_PER = 5;       // 每吃 5 颗提速
   const BONUS_EVERY = 5;       // 每吃 5 颗出金豆
   const BONUS_TTL = 40;        // 金豆存活步数
@@ -123,7 +123,7 @@
 
   /** 当前步进间隔（随吃豆数提速） */
   function intervalFor(state) {
-    return Math.max(MIN_INTERVAL, BASE_INTERVAL - Math.floor(state.eaten / SPEEDUP_PER) * 12);
+    return Math.max(MIN_INTERVAL, BASE_INTERVAL - Math.floor(state.eaten / SPEEDUP_PER) * 10);
   }
 
   const api = {
