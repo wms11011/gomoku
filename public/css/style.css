@@ -764,3 +764,402 @@ body {
 
 .back-modal-btns { display: flex; gap: 10px; }
 .back-modal-btns .btn { flex: 1; }
+
+/* ---------- 迷你世界（3D 体素沙盒） ---------- */
+body.minecraft-page {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: #000;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#mc-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+}
+
+/* 准星 */
+#mc-crosshair {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10;
+}
+#mc-crosshair::before,
+#mc-crosshair::after {
+  content: '';
+  position: absolute;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.9);
+}
+#mc-crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+#mc-crosshair::after { left: 0; top: 8px; width: 18px; height: 2px; }
+
+/* 快捷栏 */
+#mc-hotbar {
+  position: fixed;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  z-index: 20;
+  padding: 6px;
+  border-radius: 12px;
+  background: rgba(10, 12, 18, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.mc-hb-slot {
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+}
+.mc-hb-slot canvas { width: 30px; height: 30px; image-rendering: pixelated; }
+.mc-hb-slot.sel { border-color: #ffd873; box-shadow: 0 0 10px rgba(255, 216, 115, 0.55); }
+.mc-hb-slot .mc-hb-name {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.65);
+  padding: 2px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  display: none;
+}
+.mc-hb-slot.sel .mc-hb-name { display: block; }
+
+/* 右上角菜单按钮 */
+.mc-top-btn {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 40;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 179, 106, 0.55);
+  background: rgba(26, 24, 18, 0.72);
+  color: var(--gold-bright, #ffd873);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* 指针锁定时隐藏屏幕按钮（此时鼠标被画布独占，按钮点不到），改显 Esc 提示 */
+body.mc-locked .mc-top-btn,
+body.mc-locked .back-home-btn { display: none; }
+#mc-esc-hint {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  pointer-events: none;
+  display: none;
+}
+body.mc-locked #mc-esc-hint { display: block; }
+
+/* 触屏：左下虚拟摇杆 */
+#mc-joy-zone {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  width: 45vw;
+  height: 45vh;
+  z-index: 25;
+  display: none;
+}
+#mc-joy-base {
+  position: absolute;
+  left: 34px;
+  bottom: 84px;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.10);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+#mc-joy-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  transform: translate(-50%, -50%);
+}
+
+/* 触屏：右下动作按钮 */
+#mc-touch-btns {
+  position: fixed;
+  right: 14px;
+  bottom: 84px;
+  z-index: 25;
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+}
+.mc-act-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(10, 12, 18, 0.55);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+}
+.mc-act-btn:active { background: rgba(255, 216, 115, 0.45); }
+
+body.mc-touch #mc-joy-zone { display: block; }
+body.mc-touch #mc-touch-btns { display: flex; }
+/* 触屏时快捷栏上移，避开摇杆与动作按钮 */
+body.mc-touch #mc-hotbar { bottom: 210px; }
+@media (max-width: 520px) {
+  .mc-hb-slot { width: 36px; height: 36px; }
+  .mc-hb-slot canvas { width: 24px; height: 24px; }
+}
+
+/* Toast */
+#mc-toast {
+  position: fixed;
+  left: 50%;
+  top: 18%;
+  transform: translateX(-50%);
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.72);
+  color: #ffe9a8;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 15px;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+#mc-toast.hidden { opacity: 0; }
+
+/* 菜单覆盖层 */
+#mc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 9, 14, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+#mc-overlay.hidden { display: none; }
+.mc-overlay-card {
+  background: #1e2130;
+  border: 1px solid var(--card-border, #2c3044);
+  border-radius: 16px;
+  padding: 26px 28px 22px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  max-width: 320px;
+}
+.mc-overlay-card h3 { margin: 0 0 10px; color: #fff; }
+.mc-overlay-card p { color: #cfd4e4; font-size: 13px; line-height: 1.9; margin: 0 0 16px; }
+.mc-overlay-card .btn { display: block; width: 100%; margin-top: 10px; }
+.mc-overlay-card .btn.warn { border-color: #e06c5c; color: #ffb0a3; }
+
+/* 手机上隐藏返回大厅按钮以免挡住摇杆 */
+@media (max-width: 720px) {
+  body.minecraft-page .back-home-btn { top: 12px; left: 12px; height: 34px; font-size: 12px; }
+}
+
+/* ---------- 迷你世界 · 生存玩法 UI ---------- */
+
+/* 生命值（红心） */
+#mc-hearts {
+  position: fixed;
+  top: 64px;
+  left: 16px;
+  z-index: 20;
+  font-size: 20px;
+  letter-spacing: 2px;
+  pointer-events: none;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+}
+#mc-hearts .full { color: #e8433f; }
+#mc-hearts .half { color: #e89a3f; }
+#mc-hearts .empty { color: rgba(255, 255, 255, 0.28); }
+
+/* 挖掘进度环 */
+#mc-ring {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 36px;
+  height: 36px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  display: none;
+  pointer-events: none;
+  z-index: 11;
+  /* 中间掏空，只留环 */
+  -webkit-mask: radial-gradient(circle, transparent 11px, #000 12px);
+  mask: radial-gradient(circle, transparent 11px, #000 12px);
+}
+
+/* 快捷栏物品数量角标 */
+.mc-hb-count {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 1px 1px 0 #000;
+  pointer-events: none;
+}
+
+/* 受伤红屏与水下滤镜 */
+#mc-hurt, #mc-water {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+#mc-hurt { z-index: 35; background: radial-gradient(ellipse at center, transparent 40%, rgba(200, 20, 20, 0.55) 100%); transition: opacity 0.08s ease; }
+#mc-water { z-index: 15; background: rgba(30, 80, 190, 0.28); }
+
+/* 背包与合成面板 */
+#mc-inv {
+  position: fixed;
+  inset: 0;
+  z-index: 46;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 9, 14, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+#mc-inv.hidden { display: none; }
+.mc-inv-card {
+  background: #1e2130;
+  border: 1px solid var(--card-border, #2c3044);
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  max-width: min(92vw, 560px);
+  max-height: 86vh;
+  overflow: auto;
+}
+.mc-inv-card h3 { margin: 0 0 12px; color: #fff; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+.mc-inv-close { cursor: pointer; color: #9aa0b4; padding: 2px 8px; border-radius: 6px; }
+.mc-inv-close:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.mc-inv-body { display: flex; gap: 16px; flex-wrap: wrap; }
+#mc-inv-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 40px);
+  gap: 5px;
+}
+.mc-inv-slot {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+}
+.mc-inv-slot.hot { border-color: rgba(255, 216, 115, 0.4); background: rgba(255, 216, 115, 0.07); }
+.mc-inv-slot:hover { border-color: rgba(255, 255, 255, 0.5); }
+.mc-inv-slot canvas { width: 26px; height: 26px; image-rendering: pixelated; }
+#mc-recipes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+  flex: 1;
+}
+.mc-recipe {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(70, 130, 60, 0.25);
+  color: #e8ecff;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.mc-recipe span { font-size: 11px; color: #aab; }
+.mc-recipe.off { opacity: 0.42; background: rgba(255, 255, 255, 0.05); }
+.mc-recipe:not(.off):hover { border-color: #7fd06a; }
+.mc-inv-tip { margin: 12px 0 0; font-size: 12px; color: #9aa0b4; }
+
+/* 死亡页 */
+#mc-death {
+  position: fixed;
+  inset: 0;
+  z-index: 48;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(60, 8, 8, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+#mc-death.hidden { display: none; }
+
+/* 和平模式开关 */
+.mc-peace {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  color: #cfd4e4;
+  font-size: 13px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+.mc-peace input { width: 16px; height: 16px; accent-color: #ffd873; }
+
+@media (max-width: 720px) {
+  #mc-hearts { top: 56px; font-size: 16px; }
+  #mc-inv-grid { grid-template-columns: repeat(8, 32px); }
+  .mc-inv-slot { width: 32px; height: 32px; }
+  .mc-inv-slot canvas { width: 22px; height: 22px; }
+}

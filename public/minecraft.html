@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>迷你世界 · Mini World</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧱</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="minecraft-page">
+  <canvas id="mc-canvas"></canvas>
+
+  <!-- 准星与挖掘进度环 -->
+  <div id="mc-crosshair" aria-hidden="true"></div>
+  <div id="mc-ring" aria-hidden="true"></div>
+
+  <!-- 生命值 -->
+  <div id="mc-hearts" aria-label="生命值"></div>
+
+  <!-- 快捷栏 -->
+  <div id="mc-hotbar" aria-label="物品快捷栏"></div>
+
+  <!-- 右上角菜单 -->
+  <button id="mc-btn-menu" class="mc-top-btn" title="菜单">☰ 菜单</button>
+
+  <!-- 指针锁定时的 Esc 提示 -->
+  <div id="mc-esc-hint">Esc 打开菜单</div>
+
+  <!-- 受伤红屏 / 水下滤镜 -->
+  <div id="mc-hurt" aria-hidden="true"></div>
+  <div id="mc-water" aria-hidden="true"></div>
+
+  <!-- 触屏控件（仅触屏设备显示） -->
+  <div id="mc-joy-zone">
+    <div id="mc-joy-base"><div id="mc-joy-knob"></div></div>
+  </div>
+  <div id="mc-touch-btns">
+    <button id="mc-btn-inv" class="mc-act-btn">🎒 包</button>
+    <button id="mc-btn-dig" class="mc-act-btn">⛏ 挖</button>
+    <button id="mc-btn-place" class="mc-act-btn">🧱 放</button>
+    <button id="mc-btn-jump" class="mc-act-btn">⬆ 跳</button>
+  </div>
+
+  <div id="mc-toast" class="hidden"></div>
+
+  <!-- 背包与合成面板 -->
+  <div id="mc-inv" class="hidden">
+    <div class="mc-inv-card">
+      <h3>背包与合成 <span class="mc-inv-close" id="mc-inv-close">✕</span></h3>
+      <div class="mc-inv-body">
+        <div id="mc-inv-grid" aria-label="背包格子"></div>
+        <div id="mc-recipes" aria-label="合成配方"></div>
+      </div>
+      <p class="mc-inv-tip">点物品：快捷栏 ↔ 背包互移 · 点配方直接合成</p>
+    </div>
+  </div>
+
+  <!-- 死亡页 -->
+  <div id="mc-death" class="hidden">
+    <div class="overlay-card mc-overlay-card">
+      <h3>你死了</h3>
+      <p id="mc-death-cause"></p>
+      <button class="btn primary" id="mc-btn-respawn">在出生点重生</button>
+    </div>
+  </div>
+
+  <!-- 菜单 / 开始覆盖层 -->
+  <div id="mc-overlay">
+    <div class="overlay-card mc-overlay-card">
+      <h3>迷你世界</h3>
+      <p id="mc-overlay-hint"></p>
+      <label class="mc-peace"><input type="checkbox" id="mc-peaceful"> 和平模式（不出现僵尸）</label>
+      <button class="btn primary" id="mc-btn-play">进入世界</button>
+      <button class="btn hidden" id="mc-btn-save">保存世界</button>
+      <button class="btn hidden" id="mc-btn-new">生成新世界</button>
+    </div>
+  </div>
+
+  <script src="lib/three.min.js"></script>
+  <script src="js/back.js"></script>
+  <script src="js/minecraft/core.js"></script>
+  <script src="js/minecraft/main.js"></script>
+</body>
+</html>

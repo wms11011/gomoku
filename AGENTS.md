@@ -11,14 +11,15 @@
 
 ## 项目概览（gomoku/）
 
-一个零框架的 JavaScript 多游戏网站（中文界面），含三个游戏：
+一个零框架的 JavaScript 多游戏网站（中文界面），含四个游戏：
 
 - **五子棋**：支持人机对战（自带 AI）、WebSocket 联机对战（房间制）、本地双人。
-- **俄罗斯方块**、**贪吃蛇**：纯前端单机游戏。
+- **俄罗斯方块**、**贪吃蛇**：纯前端单机游戏（canvas 2D）。
+- **迷你世界**：3D 体素沙盒（类 Minecraft 单机生存版），Three.js 渲染。种子化随机地形（山丘/湖泊/树木/煤矿）、挖放方块、重力碰撞、手机触屏操控、localStorage 存档；生存要素：昼夜循环、生命值/摔落伤害/死亡重生、夜晚刷僵尸（白天自燃）、猪（掉肉回血）、挖掘硬度与工具（镐/剑）、掉落物拾取、背包与点击式合成（木板/木棍/镐/剑/火把）、火把夜间点光源、和平模式开关。
 
 技术栈：
 
-- **前端**：原生 HTML/CSS/JavaScript，无任何框架与构建步骤，`public/` 下的文件直接静态托管。
+- **前端**：原生 HTML/CSS/JavaScript，无任何框架与构建步骤，`public/` 下的文件直接静态托管。唯一的前端库是迷你世界用的 Three.js（`public/lib/three.min.js`，vendor 单文件，MIT 协议，不经过 npm）。
 - **后端（双实现，协议与行为完全一致）**：
   - Node 版 `server/server.js`：本机 / Render 部署用，房间状态存内存，唯一 npm 依赖是 `ws`（WebSocket 库）。
   - Deno 版 `deno/main.js`：Deno Deploy 部署用，房间状态存 Deno KV（多实例下的一致性由 KV 原子比较并提交 + `kv.watch` 推送保证）。
@@ -36,9 +37,11 @@
 ```
 server/     后端：server.js（Node 版）、room-ops.js（共用房间逻辑）、auth.js（门禁）、gate.html（门禁页）
 deno/       main.js（Deno Deploy 版服务器）
-public/     前端：index.html（游戏大厅）、gomoku/tetris/snake.html、css/style.css、
+public/     前端：index.html（游戏大厅）、gomoku/tetris/snake/minecraft.html、css/style.css、
             js/game.js（五子棋规则）、ai.js、net.js（WS 客户端封装）、main.js、back.js、
-            js/tetris/（core.js 纯逻辑 + main.js 界面）、js/snake/（同上结构）
+            js/tetris/（core.js 纯逻辑 + main.js 界面）、js/snake/（同上结构）、
+            js/minecraft/（core.js 纯逻辑：地形生成/区块网格化/拾取/存档 + main.js 渲染与操控）、
+            lib/three.min.js（Three.js r128 UMD vendor 文件，仅迷你世界使用）
 test/       测试（见下节）
 tools/      本地工具（deno.exe、cloudflared.exe），已在 .gitignore 中忽略
 render.yaml Render 一键部署配置（Blueprint）
@@ -72,7 +75,9 @@ Windows 用户也可直接双击 `启动游戏.bat`（起服务器 + 公网隧�
 - `test/core.test.js` —— 五子棋规则与 AI 单元测试
 - `test/net.test.js` —— 联机对战集成测试：启动真实服务器子进程，用两个 WebSocket 客户端跑完整对局（建房/加入/落子/胜负/重开协商/断线重连）。默认测 Node 后端；`SERVER_KIND=deno node test/net.test.js` 测 Deno 后端（会拉起 `tools/deno.exe`，KV 用 `:memory:`）
 - `test/auth.test.js` —— 门禁（白名单、签名 Cookie、拦截）测试
-- `test/tetris-core.test.js`、`test/snake-core.test.js` —— 两个单机游戏的核心逻辑测试
+- `test/tetris-core.test.js`、`test/snake-core.test.js` —— 两个 2D 单机游戏的核心逻辑测试
+- `test/minecraft-core.test.js` —— 迷你世界核心逻辑测试（地形确定性、面剔除网格化、DDA 拾取、挖掘/工具/掉落规则、背包与合成、昼夜状态、刷怪选址、存档往返）
+- `test/minecraft-ui-smoke.test.js` —— 迷你世界界面层冒烟测试：用最小 DOM/THREE 桩件在 Node 里真实执行 `main.js`，验证启动流程与主循环（昼夜推进/刷怪/怪物 AI/掉落拾取/背包开合）不抛错。注意：桩件从 `public/minecraft.html` 解析合法元素 id，main.js 引用不存在的 id 会直接报错
 
 另有一个**不在 `npm test` 中**的 `test/live.test.js`：连接线上 Deno Deploy 部署做冒烟验证，需先设置环境变量 `GOMOKU_TEST_PHONE`（白名单手机号之一），手动执行 `node test/live.test.js`。
 
