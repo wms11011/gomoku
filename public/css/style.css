@@ -1224,3 +1224,6 @@ body.mc-touch #mc-hotbar { bottom: 210px; }
   display: inline-block;
   margin-top: 8px;
 }
+
+/* 背包/菜单卡片内允许竖向滑动（页面全局 touch-action:none，面板里要放开） */
+.mc-inv-card, .mc-overlay-card { touch-action: pan-y; }

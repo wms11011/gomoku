@@ -1186,8 +1186,12 @@
     }, { passive: true });
 
     document.addEventListener('touchmove', (e) => {
+      // 面板打开（背包/菜单/死亡页）时不拦截，让浏览器原生滚动
+      if (invOpen || dead || !overlay.classList.contains('hidden')) return;
+      let handled = false;
       for (const t of e.changedTouches) {
         if (t.identifier === joyTouchId) {
+          handled = true;
           const r = joyBase.getBoundingClientRect();
           const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
           let dx = (t.clientX - cx) / (r.width / 2), dy = (t.clientY - cy) / (r.height / 2);
@@ -1196,13 +1200,14 @@
           joyVec.x = dx; joyVec.y = -dy;
           joyKnob.style.transform = 'translate(calc(-50% + ' + dx * 30 + 'px), calc(-50% + ' + dy * 30 + 'px))';
         } else if (t.identifier === lookTouchId && lookLast) {
+          handled = true;
           player.yaw -= (t.clientX - lookLast.x) * 0.006;
           player.pitch -= (t.clientY - lookLast.y) * 0.006;
           player.pitch = Math.max(-1.55, Math.min(1.55, player.pitch));
           lookLast = { x: t.clientX, y: t.clientY };
         }
       }
-      if (e.cancelable) e.preventDefault();
+      if (handled && e.cancelable) e.preventDefault();
     }, { passive: false });
 
     function touchEnd(e) {
