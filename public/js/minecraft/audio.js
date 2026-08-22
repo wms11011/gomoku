@@ -162,42 +162,51 @@
     respawn: () => [330, 440, 660].forEach((f, i) => tone(f, 0.12, i * 0.08, 'triangle', 0.07)),
   };
 
-  // ---------- 生成式背景音乐（稀疏钢琴氛围，仿 C418 气质） ----------
+  // ---------- 生成式背景音乐 ----------
+  // 风格仿 C418 的 MC 氛围乐：I–V–vi–IV 安静和弦垫循环 + 稀疏钢琴旋律长音。
+  // 和弦走向与调式本身无版权，旋律为程序随机生成，不复制任何原版曲目。
 
-  const PENTA = [0, 2, 4, 7, 9, 12, 14, 16]; // 五声音阶（跨两个八度）
-  let bgmTimer = null, beat = 0, nextT = 0, night = false, degree = 3;
+  const CHORDS = [ // [低音根音, 五度]
+    [130.8, 196.0],  // C
+    [98.0, 196.0],   // G
+    [110.0, 220.0],  // Am
+    [87.3, 174.6],   // F
+  ];
+  const SCALE = [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 587.3, 659.3]; // C 大调 C4~E5
+  let bgmTimer = null, bar = 0, nextT = 0, night = false, degree = 2;
 
-  /** 钢琴质感拨弦：基音 + 轻微泛音，长衰减 */
+  /** 钢琴质感：基音 + 轻泛音，2.6 秒长衰减 */
   function pluck(freq, t, vol) {
-    tone(freq, 2.2, t - ctx.currentTime, 'sine', vol, bgmGain);
-    tone(freq * 2, 1.2, t - ctx.currentTime, 'sine', vol * 0.3, bgmGain);
+    tone(freq, 2.6, t - ctx.currentTime, 'sine', vol, bgmGain);
+    tone(freq * 2, 1.4, t - ctx.currentTime, 'sine', vol * 0.25, bgmGain);
   }
 
-  function scheduleBeat(b, t) {
-    const base = night ? 174.6 : 220;
-    // 稀疏：偶数拍七成概率，奇数拍三成
-    if ((b % 2 === 0 && Math.random() < 0.7) || Math.random() < 0.3) {
+  function scheduleBar(t) {
+    const barLen = night ? 4.8 : 3.6;
+    const chord = CHORDS[bar % 4];
+    // 和弦垫：根音 + 五度铺满整小节（MC 式的长音底）
+    tone(chord[0], barLen, t - ctx.currentTime, 'sine', night ? 0.02 : 0.026, bgmGain);
+    tone(chord[1], barLen, t - ctx.currentTime, 'sine', night ? 0.013 : 0.017, bgmGain);
+    // 旋律：每小节 0~3 个音落在拍点上，随机游走 + 偶尔低八度；夜晚整体低八度
+    const melVol = night ? 0.032 : 0.044;
+    const slots = (Math.random() * 4) | 0;
+    for (let k = 0; k < slots; k++) {
+      const off = ((Math.random() * 4) | 0) * (barLen / 4);
       degree += [-2, -1, -1, 0, 1, 1, 2][(Math.random() * 7) | 0];
-      degree = Math.max(0, Math.min(PENTA.length - 1, degree));
-      const f = base * Math.pow(2, PENTA[degree] / 12);
-      pluck(f, t, night ? 0.03 : 0.042);
-      // 偶尔叠五度和声
-      if (Math.random() < 0.18) pluck(f * 1.5, t + 0.05, (night ? 0.03 : 0.042) * 0.6);
-    }
-    // 每 8 拍一层低音铺垫
-    if (b % 8 === 0) {
-      const low = night ? 87.3 : 110;
-      tone(low, 6, t - ctx.currentTime, 'sine', 0.024, bgmGain);
-      tone(low * 1.5, 6, t - ctx.currentTime, 'sine', 0.015, bgmGain);
+      degree = Math.max(0, Math.min(SCALE.length - 1, degree));
+      let f = SCALE[degree];
+      if (Math.random() < 0.15) f /= 2;
+      if (night) f /= 2;
+      pluck(f, t + off, melVol);
     }
   }
 
   function schedule() {
     if (!ctx) return;
-    while (nextT < ctx.currentTime + 0.6) {
-      scheduleBeat(beat, nextT);
-      nextT += night ? 2.1 : 1.6; // 夜晚更慢更稀疏
-      beat++;
+    while (nextT < ctx.currentTime + 0.8) {
+      scheduleBar(nextT);
+      nextT += night ? 4.8 : 3.6;
+      bar++;
     }
   }
 
@@ -205,8 +214,8 @@
     ensure();
     if (!ctx || bgmTimer || muted) return;
     nextT = ctx.currentTime + 0.1;
-    beat = 0;
-    bgmTimer = setInterval(schedule, 200);
+    bar = 0;
+    bgmTimer = setInterval(schedule, 250);
   }
 
   function stopBgm() {
