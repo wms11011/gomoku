@@ -17,7 +17,18 @@
 
   const MC = window.MinecraftCore;
   const AU = window.McAudio || null; // 音效模块（audio.js），加载失败时静默
-  function playS(name) { if (AU) AU.sfx[name](); }
+  function playS(name, arg) { if (AU) AU.sfx[name](arg); }
+
+  /** 方块 → 音效材质组（模仿 MC 按材质出声） */
+  function matOf(id) {
+    switch (id) {
+      case MC.STONE: case MC.COBBLE: case MC.COAL_ORE: case MC.BEDROCK: return 'stone';
+      case MC.LOG: case MC.PLANKS: return 'wood';
+      case MC.SAND: return 'sand';
+      case MC.LEAVES: return 'leaves';
+      default: return 'grass';
+    }
+  }
   const canvas = document.getElementById('mc-canvas');
   const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   if (isTouch) document.body.classList.add('mc-touch');
@@ -425,6 +436,7 @@
 
   const keys = Object.create(null);
   let jumpHeld = false;
+  let stepSfxT = 0; // 脚步声音节流
   const joyVec = { x: 0, y: 0 }; // 摇杆：x 右为正，y 前为正
 
   function stepPlayer(dt) {
@@ -456,6 +468,18 @@
     if (player.onGround) player.fallPeak = player.pos.y;
 
     if (jumpHeld && player.onGround && !player.inWater) player.vel.y = 8.8;
+
+    // 脚步声：着地行走时按脚下材质发声
+    if (player.onGround && !player.inWater && Math.hypot(player.vel.x, player.vel.z) > 1) {
+      stepSfxT -= dt;
+      if (stepSfxT <= 0) {
+        const under = MC.getBlock(world, Math.floor(player.pos.x), Math.floor(player.pos.y - 0.5), Math.floor(player.pos.z));
+        if (MC.isOpaque(under)) playS('step', matOf(under));
+        stepSfxT = 0.33;
+      }
+    } else {
+      stepSfxT = 0;
+    }
 
     if (player.pos.y < -8) spawnAtStart(); // 兜底：掉出世界回出生点
 
@@ -634,6 +658,7 @@
       vel: { x: 0, y: 0, z: 0 },
       hp: cfg.hp, onGround: false, yaw: 0,
       attackCd: 0, thinkT: 0, wander: null, flashT: 0,
+      sfxT: 2 + Math.random() * 5, // 环境叫声计时
     });
   }
 
@@ -703,6 +728,14 @@
 
       const r = stepBody(m, m.cfg.halfW, m.cfg.height, dt, { swim: true });
       if (r.hitWall && m.onGround) m.vel.y = 8.5; // 被方块挡住就跳一下
+
+      // 环境叫声：僵尸低吼 / 猪哼，靠近才听得见
+      m.sfxT -= dt;
+      if (m.sfxT <= 0) {
+        m.sfxT = 4 + Math.random() * 6;
+        const range = m.kind === 'zombie' ? 14 : 9;
+        if (dist < range) playS(m.kind === 'zombie' ? 'zombie' : 'pig');
+      }
 
       // 受击闪红恢复
       if (m.flashT > 0) {
@@ -818,14 +851,14 @@
     if (!isFinite(dur)) { setRing(null); return; } // 基岩
     digTarget.progress += dt / dur;
     digSfxT -= dt;
-    if (digSfxT <= 0) { playS('dig'); digSfxT = 0.25; }
+    if (digSfxT <= 0) { playS('dig', matOf(hit.id)); digSfxT = 0.25; }
     setRing(Math.min(1, digTarget.progress));
     if (digTarget.progress >= 1) {
       const dropId = MC.dropFor(hit.id, currentToolId());
       if (MC.setBlock(world, hit.x, hit.y, hit.z, MC.AIR)) {
         rebuildAround(hit.x, hit.z);
         if (dropId) spawnDrop(dropId, hit.x, hit.y, hit.z);
-        playS('break');
+        playS('break', matOf(hit.id));
         dirty = true;
       }
       digTarget = null;

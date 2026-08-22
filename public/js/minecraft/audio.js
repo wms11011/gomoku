@@ -2,9 +2,11 @@
  * 迷你世界音效与背景音乐（WebAudio 程序化生成，零音频资源文件）。
  * IIFE 挂 window.McAudio，被 main.js 调用；无 AudioContext 环境（如 Node 测试桩）下全部静默。
  *
- * 音效：挖掘/破坏/放置/拾取/受击/攻击/击杀/吃肉/合成/死亡/重生。
- * 背景音乐：生成式环境音乐 —— 五声音阶随机游走拨弦 + 每 8 拍低音铺垫；
- * 白天明亮轻快，夜晚低沉缓慢（setNight 切换）。
+ * 音效风格模仿 Minecraft 的特征（非原版音频，原版音频有版权不可直接使用）：
+ *  - 挖掘/破坏/脚步按材质区分：stone 硬脆、wood 木感闷笃、grass/dirt 松软、
+ *    sand 更散的沙沙、leaves 高频窸窣
+ *  - 拾取是快速上扬的“啵”；受击是低沉下坠的闷响；僵尸低吼、猪哼
+ * 背景音乐：生成式钢琴氛围（稀疏五声音阶 + 长衰减），白天明亮、夜晚低沉缓慢。
  */
 (function (global) {
   'use strict';
@@ -42,6 +44,22 @@
     osc.stop(t0 + dur + 0.02);
   }
 
+  /** 音高扫频（用于拾取“啵”、受击闷响等） */
+  function sweep(freq0, freq1, dur, delay, type, vol) {
+    if (!ctx || muted) return;
+    const t0 = ctx.currentTime + (delay || 0);
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq0, t0);
+    osc.frequency.exponentialRampToValueAtTime(freq1, t0 + dur);
+    gain.gain.setValueAtTime(vol || 0.06, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    osc.connect(gain).connect(master);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.02);
+  }
+
   let noiseBuf = null;
   function getNoiseBuf() {
     if (!noiseBuf) {
@@ -52,14 +70,14 @@
     return noiseBuf;
   }
 
-  /** 噪声短促音（挖掘、打击的“沙沙/砰”质感） */
-  function noise(dur, delay, vol, filterFreq) {
+  /** 噪声短促音：filterFreq 控制“材质软硬”，vol/dur 控制力度 */
+  function noise(dur, delay, vol, filterFreq, type) {
     if (!ctx || muted) return;
     const t0 = ctx.currentTime + (delay || 0);
     const src = ctx.createBufferSource();
     src.buffer = getNoiseBuf();
     const f = ctx.createBiquadFilter();
-    f.type = 'lowpass';
+    f.type = type || 'lowpass';
     f.frequency.value = filterFreq || 800;
     const g = ctx.createGain();
     g.gain.setValueAtTime(vol || 0.08, t0);
@@ -69,39 +87,108 @@
     src.stop(t0 + dur + 0.02);
   }
 
+  // ---------- 材质化音效（模仿 MC 按方块材质出声） ----------
+
+  // 每种材质：挖掘(进行中)、破坏(碎裂)、脚步 的噪声参数 + 底色音
+  const MAT_SFX = {
+    stone: {
+      dig: (v) => { noise(0.06, 0, 0.05 * v, 1400); tone(320, 0.04, 0, 'square', 0.018 * v); },
+      brk: (v) => { noise(0.16, 0, 0.1 * v, 1600); noise(0.08, 0.02, 0.07 * v, 2400, 'highpass'); tone(240, 0.08, 0, 'square', 0.03 * v); },
+      step: () => { noise(0.04, 0, 0.025, 1200); },
+    },
+    wood: {
+      dig: (v) => { noise(0.07, 0, 0.045 * v, 700); tone(180, 0.05, 0, 'triangle', 0.03 * v); },
+      brk: (v) => { noise(0.14, 0, 0.09 * v, 800); tone(150, 0.1, 0, 'triangle', 0.05 * v); },
+      step: () => { noise(0.04, 0, 0.02, 600); tone(160, 0.03, 0, 'triangle', 0.012); },
+    },
+    grass: {
+      dig: (v) => { noise(0.07, 0, 0.05 * v, 500); },
+      brk: (v) => { noise(0.15, 0, 0.09 * v, 550); tone(120, 0.08, 0, 'triangle', 0.03 * v); },
+      step: () => { noise(0.045, 0, 0.02, 450); },
+    },
+    sand: {
+      dig: (v) => { noise(0.09, 0, 0.05 * v, 380); },
+      brk: (v) => { noise(0.18, 0, 0.09 * v, 400); },
+      step: () => { noise(0.05, 0, 0.018, 350); },
+    },
+    leaves: {
+      dig: (v) => { noise(0.05, 0, 0.04 * v, 3000, 'highpass'); },
+      brk: (v) => { noise(0.12, 0, 0.07 * v, 2800, 'highpass'); },
+      step: () => { noise(0.04, 0, 0.015, 2500, 'highpass'); },
+    },
+  };
+
+  function matSfx(kind, mat, volScale) {
+    (MAT_SFX[mat] || MAT_SFX.grass)[kind](volScale || 1);
+  }
+
   const sfx = {
-    dig: () => noise(0.07, 0, 0.05, 500),                       // 挖掘中的摩擦声
-    break: () => { noise(0.14, 0, 0.1, 900); tone(160, 0.1, 0, 'triangle', 0.06); },
-    place: () => { tone(220, 0.06, 0, 'square', 0.07); noise(0.05, 0, 0.04, 700); },
-    pickup: () => { tone(880, 0.05, 0, 'triangle', 0.06); tone(1320, 0.07, 0.05, 'triangle', 0.05); },
-    hurt: () => { tone(300, 0.15, 0, 'sawtooth', 0.09); tone(180, 0.18, 0.08, 'sawtooth', 0.08); },
-    hit: () => { noise(0.08, 0, 0.09, 1200); tone(200, 0.08, 0, 'square', 0.05); },
-    mobDie: () => [400, 300, 200].forEach((f, i) => tone(f, 0.12, i * 0.07, 'sawtooth', 0.05)),
-    eat: () => { noise(0.08, 0, 0.06, 600); noise(0.08, 0.12, 0.06, 600); noise(0.1, 0.24, 0.05, 500); },
+    // 挖掘进行中（mat 为材质），破坏（碎裂声更大）
+    dig: (mat) => matSfx('dig', mat),
+    break: (mat) => matSfx('brk', mat),
+    step: (mat) => matSfx('step', mat),
+    place: () => { matSfx('dig', 'stone'); tone(190, 0.07, 0, 'triangle', 0.05); },
+    // 拾取：MC 标志性的快速上扬“啵”
+    pickup: () => sweep(420, 980, 0.09, 0, 'sine', 0.09),
+    // 受击：MC 的“闷哼”——低频快速下坠
+    hurt: () => { sweep(220, 90, 0.16, 0, 'sine', 0.12); noise(0.08, 0, 0.05, 400); },
+    hit: () => { noise(0.07, 0, 0.09, 1000); sweep(200, 120, 0.08, 0, 'triangle', 0.06); },
+    mobDie: () => { sweep(300, 80, 0.3, 0, 'sawtooth', 0.05); noise(0.15, 0, 0.05, 500); },
+    // 僵尸低吼：低频锯齿波带颤音
+    zombie: () => {
+      if (!ctx || muted) return;
+      const t0 = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const lfo = ctx.createOscillator();
+      const lfoGain = ctx.createGain();
+      const g = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.value = 82 + Math.random() * 20;
+      lfo.frequency.value = 7;
+      lfoGain.gain.value = 8;
+      lfo.connect(lfoGain).connect(osc.frequency);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.035, t0 + 0.15);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.7);
+      osc.connect(g).connect(master);
+      osc.start(t0); osc.stop(t0 + 0.75);
+      lfo.start(t0); lfo.stop(t0 + 0.75);
+    },
+    // 猪哼：两声短促的鼻音
+    pig: () => { sweep(320, 180, 0.09, 0, 'square', 0.035); sweep(300, 170, 0.09, 0.13, 'square', 0.03); },
+    eat: () => { noise(0.07, 0, 0.06, 600); noise(0.07, 0.13, 0.06, 550); noise(0.09, 0.26, 0.05, 500); },
     craft: () => [523, 659, 784].forEach((f, i) => tone(f, 0.1, i * 0.06, 'triangle', 0.07)),
     death: () => [400, 300, 220, 140].forEach((f, i) => tone(f, 0.25, i * 0.15, 'sawtooth', 0.08)),
     respawn: () => [330, 440, 660].forEach((f, i) => tone(f, 0.12, i * 0.08, 'triangle', 0.07)),
   };
 
-  // ---------- 生成式背景音乐 ----------
+  // ---------- 生成式背景音乐（稀疏钢琴氛围，仿 C418 气质） ----------
 
   const PENTA = [0, 2, 4, 7, 9, 12, 14, 16]; // 五声音阶（跨两个八度）
   let bgmTimer = null, beat = 0, nextT = 0, night = false, degree = 3;
 
+  /** 钢琴质感拨弦：基音 + 轻微泛音，长衰减 */
+  function pluck(freq, t, vol) {
+    tone(freq, 2.2, t - ctx.currentTime, 'sine', vol, bgmGain);
+    tone(freq * 2, 1.2, t - ctx.currentTime, 'sine', vol * 0.3, bgmGain);
+  }
+
   function scheduleBeat(b, t) {
     const base = night ? 174.6 : 220;
-    // 拨弦：偶数拍必响，奇数拍六成概率
-    if (b % 2 === 0 || Math.random() < 0.55) {
+    // 稀疏：偶数拍七成概率，奇数拍三成
+    if ((b % 2 === 0 && Math.random() < 0.7) || Math.random() < 0.3) {
       degree += [-2, -1, -1, 0, 1, 1, 2][(Math.random() * 7) | 0];
       degree = Math.max(0, Math.min(PENTA.length - 1, degree));
       const f = base * Math.pow(2, PENTA[degree] / 12);
-      tone(f, night ? 1.8 : 1.1, t - ctx.currentTime, 'sine', night ? 0.028 : 0.038, bgmGain);
+      pluck(f, t, night ? 0.03 : 0.042);
+      // 偶尔叠五度和声
+      if (Math.random() < 0.18) pluck(f * 1.5, t + 0.05, (night ? 0.03 : 0.042) * 0.6);
     }
     // 每 8 拍一层低音铺垫
     if (b % 8 === 0) {
       const low = night ? 87.3 : 110;
-      tone(low, 5, t - ctx.currentTime, 'sine', 0.022, bgmGain);
-      tone(low * 1.5, 5, t - ctx.currentTime, 'sine', 0.014, bgmGain);
+      tone(low, 6, t - ctx.currentTime, 'sine', 0.024, bgmGain);
+      tone(low * 1.5, 6, t - ctx.currentTime, 'sine', 0.015, bgmGain);
     }
   }
 
@@ -109,7 +196,7 @@
     if (!ctx) return;
     while (nextT < ctx.currentTime + 0.6) {
       scheduleBeat(beat, nextT);
-      nextT += night ? 1.9 : 1.4; // 夜晚更慢
+      nextT += night ? 2.1 : 1.6; // 夜晚更慢更稀疏
       beat++;
     }
   }
