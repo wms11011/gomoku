@@ -1216,3 +1216,11 @@ body.mc-touch #mc-hotbar { bottom: 210px; }
 @media (max-width: 520px) {
   body.mc-touch #mc-hotbar { gap: 4px; padding: 4px; }
 }
+
+.mc-rotate-sub {
+  font-size: 13px;
+  color: #aab;
+  line-height: 1.8;
+  display: inline-block;
+  margin-top: 8px;
+}
