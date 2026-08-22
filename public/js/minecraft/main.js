@@ -1019,7 +1019,21 @@
   let started = false;
 
   const HINT_PC = 'WASD 移动 · 空格跳 · 左键挖/攻击 · 右键放置/吃肉<br>E 背包与合成 · 滚轮/数字键选物品 · Esc 菜单<br>先撸树做工具和火把，晚上有僵尸出没！';
-  const HINT_TOUCH = '左下摇杆移动 · 右侧滑动转视角 · 右下 挖/放/跳<br>🎒 打开背包与合成 · 点快捷栏选物品<br>先撸树做工具和火把，晚上有僵尸出没！';
+  const HINT_TOUCH = '建议横屏游玩 · 左下摇杆移动 · 右侧滑动转视角 · 右下 挖/放/跳<br>🎒 打开背包与合成 · 点快捷栏选物品<br>先撸树做工具和火把，晚上有僵尸出没！';
+
+  /** 手机端尽量全屏并锁定横屏（需用户手势触发；不支持的浏览器由竖屏提示层兜底） */
+  function tryLandscape() {
+    try {
+      const p = document.documentElement.requestFullscreen
+        ? document.documentElement.requestFullscreen() : null;
+      const lock = () => {
+        if (screen.orientation && screen.orientation.lock) {
+          screen.orientation.lock('landscape').catch(() => {});
+        }
+      };
+      if (p && p.then) p.then(lock, lock); else lock();
+    } catch (e) { /* 不支持就算了 */ }
+  }
 
   function showOverlay(withMenu) {
     overlay.classList.remove('hidden');
@@ -1039,7 +1053,7 @@
   btnPlay.addEventListener('click', () => {
     hideOverlay();
     btnPlay.blur();
-    if (!isTouch) lockPointer();
+    if (isTouch) tryLandscape(); else lockPointer();
   });
   btnSave.addEventListener('click', () => { saveWorld(false); btnSave.blur(); });
   chkPeaceful.addEventListener('change', () => {
@@ -1213,6 +1227,8 @@
   // ---------- 自动保存 ----------
 
   function paused() {
+    // 手机竖屏时暂停（提示层已盖住画面）
+    if (isTouch && window.innerHeight > window.innerWidth) return true;
     return !started || dead || invOpen || !overlay.classList.contains('hidden');
   }
 

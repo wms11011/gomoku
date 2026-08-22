@@ -770,6 +770,7 @@ body.minecraft-page {
   margin: 0;
   padding: 0;
   height: 100vh;
+  height: 100dvh; /* 手机浏览器地址栏伸缩时跟随真实可视高度 */
   overflow: hidden;
   background: #000;
   touch-action: none;
@@ -782,6 +783,7 @@ body.minecraft-page {
   inset: 0;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   display: block;
 }
 
@@ -1162,4 +1164,55 @@ body.mc-touch #mc-hotbar { bottom: 210px; }
   #mc-inv-grid { grid-template-columns: repeat(8, 32px); }
   .mc-inv-slot { width: 32px; height: 32px; }
   .mc-inv-slot canvas { width: 22px; height: 22px; }
+}
+
+/* 竖屏提示：手机竖屏时盖住整个画面 */
+#mc-rotate {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 9, 14, 0.92);
+  color: #fff;
+  font-size: 17px;
+  text-align: center;
+  line-height: 2;
+  padding: 0 30px;
+}
+.mc-rotate-icon {
+  display: block;
+  font-size: 42px;
+  margin-bottom: 10px;
+  animation: mc-rot 1.6s ease-in-out infinite;
+}
+@keyframes mc-rot {
+  0%, 30% { transform: rotate(0deg); }
+  60%, 100% { transform: rotate(90deg); }
+}
+@media (orientation: portrait) {
+  body.minecraft-page.mc-touch #mc-rotate { display: flex; }
+}
+
+/* 手机横屏（矮屏）自适应：压缩控件尺寸，一屏放下 */
+@media (max-height: 500px) {
+  body.mc-touch #mc-hotbar { bottom: 6px; padding: 4px; gap: 4px; }
+  .mc-hb-slot { width: 38px; height: 38px; }
+  .mc-hb-slot canvas { width: 26px; height: 26px; }
+  #mc-joy-base { width: 92px; height: 92px; left: 26px; bottom: 52px; }
+  #mc-joy-knob { width: 40px; height: 40px; }
+  #mc-touch-btns { bottom: 18px; right: 10px; gap: 8px; }
+  .mc-act-btn { width: 52px; height: 52px; font-size: 13px; }
+  #mc-hearts { top: 52px; font-size: 15px; }
+  body.minecraft-page .back-home-btn { height: 32px; font-size: 12px; padding: 0 12px 0 10px; }
+  .mc-top-btn { height: 32px; font-size: 12px; padding: 0 10px; }
+  #mc-esc-hint { font-size: 11px; padding: 4px 10px; top: 8px; }
+  .mc-overlay-card { padding: 16px 18px 14px; max-height: 92vh; overflow: auto; }
+  .mc-inv-card { max-height: 92vh; }
+}
+
+/* 窄屏（竖屏兜底，虽然建议横屏） */
+@media (max-width: 520px) {
+  body.mc-touch #mc-hotbar { gap: 4px; padding: 4px; }
 }
