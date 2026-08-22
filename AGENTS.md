@@ -40,7 +40,8 @@ deno/       main.js（Deno Deploy 版服务器）
 public/     前端：index.html（游戏大厅）、gomoku/tetris/snake/minecraft.html、css/style.css、
             js/game.js（五子棋规则）、ai.js、net.js（WS 客户端封装）、main.js、back.js、
             js/tetris/（core.js 纯逻辑 + main.js 界面）、js/snake/（同上结构）、
-            js/minecraft/（core.js 纯逻辑：地形生成/区块网格化/拾取/存档 + main.js 渲染与操控）、
+            js/minecraft/（core.js 纯逻辑：地形生成/区块网格化/拾取/存档 + main.js 渲染与操控
+            + audio.js WebAudio 程序化音效与生成式背景音乐）、
             lib/three.min.js（Three.js r128 UMD vendor 文件，仅迷你世界使用）
 test/       测试（见下节）
 tools/      本地工具（deno.exe、cloudflared.exe），已在 .gitignore 中忽略

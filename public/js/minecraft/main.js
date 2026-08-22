@@ -16,6 +16,8 @@
   'use strict';
 
   const MC = window.MinecraftCore;
+  const AU = window.McAudio || null; // 音效模块（audio.js），加载失败时静默
+  function playS(name) { if (AU) AU.sfx[name](); }
   const canvas = document.getElementById('mc-canvas');
   const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   if (isTouch) document.body.classList.add('mc-touch');
@@ -477,6 +479,7 @@
   function hurtPlayer(dmg, why) {
     if (dead || dmg <= 0) return;
     player.hp -= dmg;
+    playS('hurt');
     hurtEl.style.opacity = '0.55';
     setTimeout(() => { hurtEl.style.opacity = '0'; }, 180);
     renderHearts();
@@ -491,6 +494,7 @@
       ? '你从高处摔了下来'
       : '你被僵尸咬死了';
     document.getElementById('mc-death').classList.remove('hidden');
+    playS('death');
     if (document.exitPointerLock) document.exitPointerLock();
   }
 
@@ -500,6 +504,7 @@
     spawnAtStart();
     renderHearts();
     document.getElementById('mc-death').classList.add('hidden');
+    playS('respawn');
     dirty = true;
     if (!isTouch) lockPointer();
   }
@@ -551,6 +556,7 @@
       const dist = Math.hypot(dx, dy, dz);
       if (dist < 1.0) {
         const left = MC.addItem(inventory, d.id, 1);
+        playS('pickup');
         dirty = true;
         renderHotbar();
         if (invOpen) renderInv();
@@ -774,6 +780,7 @@
     if (player.attackCd > 0) return;
     player.attackCd = 0.35;
     m.hp -= MC.attackDamage(currentToolId());
+    playS('hit');
     // 击退
     const d = lookDir();
     m.vel.x += d.x * 6; m.vel.z += d.z * 6; m.vel.y = 3.5;
@@ -781,6 +788,7 @@
     m.flashT = 0.15;
     for (const mt of m.mats) mt.emissive.setHex(0xff3333);
     if (m.hp <= 0) {
+      playS('mobDie');
       const idx = mobs.indexOf(m);
       if (idx >= 0) killMob(m, idx);
     }
@@ -796,6 +804,7 @@
   }
 
   /** 主键行为：优先打怪，其次挖方块（带硬度进度） */
+  let digSfxT = 0; // 挖掘摩擦音节流
   function stepDigging(dt) {
     if (!digHeld) { digTarget = null; setRing(null); return; }
     const hit = castFromCamera();
@@ -808,12 +817,15 @@
     const dur = MC.digSeconds(hit.id, currentToolId());
     if (!isFinite(dur)) { setRing(null); return; } // 基岩
     digTarget.progress += dt / dur;
+    digSfxT -= dt;
+    if (digSfxT <= 0) { playS('dig'); digSfxT = 0.25; }
     setRing(Math.min(1, digTarget.progress));
     if (digTarget.progress >= 1) {
       const dropId = MC.dropFor(hit.id, currentToolId());
       if (MC.setBlock(world, hit.x, hit.y, hit.z, MC.AIR)) {
         rebuildAround(hit.x, hit.z);
         if (dropId) spawnDrop(dropId, hit.x, hit.y, hit.z);
+        playS('break');
         dirty = true;
       }
       digTarget = null;
@@ -829,6 +841,7 @@
       if (player.hp >= 20) { toast('生命值已满'); return; }
       player.hp = Math.min(20, player.hp + MC.ITEMS[MC.MEAT].heal);
       if (--slot.n <= 0) inventory[selected] = null;
+      playS('eat');
       renderHearts(); renderHotbar();
       if (invOpen) renderInv();
       dirty = true;
@@ -846,6 +859,7 @@
     if (!MC.setBlock(world, x, y, z, slot.id)) return;
     if (--slot.n <= 0) inventory[selected] = null;
     rebuildAround(x, z);
+    playS('place');
     renderHotbar();
     if (invOpen) renderInv();
     dirty = true;
@@ -973,7 +987,7 @@
       btn.addEventListener('click', () => {
         const res = MC.craft(inventory, r);
         if (res === 'full') toast('背包满了');
-        else if (res === true) dirty = true;
+        else if (res === true) { playS('craft'); dirty = true; }
         renderInv(); renderHotbar();
       });
       invRecipesEl.appendChild(btn);
@@ -1053,6 +1067,7 @@
   btnPlay.addEventListener('click', () => {
     hideOverlay();
     btnPlay.blur();
+    if (AU) { AU.ensure(); AU.startBgm(); } // 音频需用户手势启动
     if (isTouch) tryLandscape(); else lockPointer();
   });
   btnSave.addEventListener('click', () => { saveWorld(false); btnSave.blur(); });
@@ -1082,6 +1097,15 @@
 
   document.getElementById('mc-btn-menu').addEventListener('click', () => showOverlay(true));
   document.getElementById('mc-btn-respawn').addEventListener('click', respawn);
+
+  // 音效开关
+  const btnMute = document.getElementById('mc-btn-mute');
+  function syncMuteBtn() { btnMute.textContent = AU && AU.isMuted() ? '🔇' : '🔊'; }
+  btnMute.addEventListener('click', () => {
+    if (!AU) return;
+    AU.setMuted(!AU.isMuted());
+    syncMuteBtn();
+  });
 
   // ---------- 电脑端：指针锁定 + 键鼠 ----------
 
@@ -1261,6 +1285,7 @@
     last = now;
 
     const sky = MC.skyState(timeTicks);
+    if (AU) AU.setNight(sky.night); // 夜晚 BGM 变低沉缓慢
     if (!paused()) {
       timeTicks = (timeTicks + dt * 20) % MC.DAY_TICKS; // 一整天 20 分钟
       stepPlayer(dt);
@@ -1302,6 +1327,7 @@
   renderHotbar();
   renderHearts();
   chkPeaceful.checked = peaceful;
+  syncMuteBtn();
   showOverlay(false);
   started = true;
   requestAnimationFrame(loop);

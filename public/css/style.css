@@ -1227,3 +1227,9 @@ body.mc-touch #mc-hotbar { bottom: 210px; }
 
 /* 背包/菜单卡片内允许竖向滑动（页面全局 touch-action:none，面板里要放开） */
 .mc-inv-card, .mc-overlay-card { touch-action: pan-y; }
+
+/* 音效开关按钮（菜单按钮左边） */
+.mc-mute-btn { right: 118px; }
+@media (max-height: 500px) {
+  .mc-mute-btn { right: 100px; }
+}

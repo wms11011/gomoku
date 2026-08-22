@@ -153,6 +153,15 @@ global.THREE = {
 
 // ---------- 执行 main.js ----------
 
+// 音频模块（无 AudioContext 环境下应全部静默降级）
+require('../public/js/minecraft/audio.js');
+assert.ok(global.McAudio, 'audio.js 应挂载 McAudio');
+global.McAudio.ensure(); // 无 AudioContext → 静默返回
+global.McAudio.startBgm();
+global.McAudio.setMuted(true);
+global.McAudio.setMuted(false);
+global.McAudio.sfx.break(); // 未初始化 AudioContext 时也不应抛错
+
 // main.js 是 IIFE，直接 require 执行
 require('../public/js/minecraft/main.js');
 
