@@ -14,8 +14,11 @@
   <div id="mc-crosshair" aria-hidden="true"></div>
   <div id="mc-ring" aria-hidden="true"></div>
 
-  <!-- 生命值 -->
+  <!-- 生命、饥饿与生存目标 -->
   <div id="mc-hearts" aria-label="生命值"></div>
+  <div id="mc-hunger" aria-label="饥饿值"></div>
+  <div id="mc-quest" aria-live="polite"></div>
+  <div id="mc-clock" aria-label="世界时间"></div>
 
   <!-- 快捷栏 -->
   <div id="mc-hotbar" aria-label="物品快捷栏"></div>
@@ -79,7 +82,7 @@
     <div class="overlay-card mc-overlay-card">
       <h3>迷你世界</h3>
       <p id="mc-overlay-hint"></p>
-      <label class="mc-peace"><input type="checkbox" id="mc-peaceful"> 和平模式（不出现僵尸）</label>
+      <label class="mc-peace"><input type="checkbox" id="mc-peaceful"> 和平模式（无僵尸，不消耗饥饿）</label>
       <button class="btn primary" id="mc-btn-play">进入世界</button>
       <button class="btn hidden" id="mc-btn-save">保存世界</button>
       <button class="btn hidden" id="mc-btn-new">生成新世界</button>

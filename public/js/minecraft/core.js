@@ -6,7 +6,8 @@
  * 地形由种子化值噪声生成（山丘 / 湖泊 / 沙滩 / 树 / 煤矿石），同一种子结果完全一致。
  * buildChunkGeometry 负责「只生成暴露面」的网格数据，渲染层只管上传 GPU。
  * raycast 为体素 DDA 拾取（挖方块 / 放方块共用）。
- * 另含生存玩法规则：背包、合成配方、挖掘硬度/工具/掉落、攻击伤害、昼夜状态、刷怪选址。
+ * 另含生存玩法规则：背包、合成配方、挖掘硬度/工具/掉落、攻击伤害、饥饿消耗与回血/挨饿、
+ * 昼夜状态、刷怪选址、新手引导目标（QUESTS）。
  * 存档：RLE + base64 字符串，localStorage 友好。
  */
 (function (global) {
@@ -49,7 +50,7 @@
   BLOCKS[COAL_ORE] = { name: '煤矿石', tiles: { top: TILE.COAL_ORE, side: TILE.COAL_ORE, bottom: TILE.COAL_ORE }, opaque: true };
   BLOCKS[TORCH] = { name: '火把', tiles: { top: TILE.TORCH, side: TILE.TORCH, bottom: TILE.TORCH }, opaque: true };
 
-  /** 物品表：tool=工具类型，power=镐子等级，atk=攻击伤害，heal=食用回血（半心） */
+  /** 物品表：tool=工具类型，power=镐子等级，atk=攻击伤害，heal=食用回血（半心），food=回复饥饿值 */
   const ITEMS = {};
   ITEMS[STICK] = { name: '木棍' };
   ITEMS[COAL] = { name: '煤炭' };
@@ -57,7 +58,7 @@
   ITEMS[STONE_PICK] = { name: '石镐', tool: 'pick', power: 2, atk: 3 };
   ITEMS[WOOD_SWORD] = { name: '木剑', tool: 'sword', atk: 4 };
   ITEMS[STONE_SWORD] = { name: '石剑', tool: 'sword', atk: 5 };
-  ITEMS[MEAT] = { name: '肉', heal: 4 };
+  ITEMS[MEAT] = { name: '肉', heal: 4, food: 6 };
 
   function isItem(id) { return id >= 100; }
   function nameOf(id) { return isItem(id) ? ITEMS[id].name : BLOCKS[id].name; }
@@ -100,6 +101,53 @@
     const tool = ITEMS[toolId];
     if (tool && tool.atk) return tool.atk;
     return 2;
+  }
+
+  // ---------- 饥饿与生命体征 ----------
+
+  const HUNGER_MAX = 20;        // 饥饿值上限
+  const HUNGER_DRAIN_SEC = 45;  // 正常每累计 45 秒饥饿 -1（奔跑 2 倍速）
+  const REGEN_SEC = 5;          // 饥饿 >=18 时每 5 秒回血 1（半心）
+  const STARVE_SEC = 4;         // 饥饿 =0 时每 4 秒扣血 1（半心）
+
+  /** 玩家生命体征：hunger 限制在 0..HUNGER_MAX；drain/regen/starve 为各计时器累计秒数 */
+  function createVitals() {
+    return { hunger: HUNGER_MAX, drain: 0, regen: 0, starve: 0 };
+  }
+
+  /**
+   * 推进一帧生命体征（原地修改 v），返回本帧 { heal, damage }（通常 0/1，dt 很大时可能更多）。
+   * sprinting=true 时饥饿消耗速度 2 倍；peaceful=true 时不消耗、不回血、不挨饿，计时器清零。
+   * dt 非负，用累计计时实现，与帧率无关。
+   */
+  function tickVitals(v, dt, sprinting = false, peaceful = false) {
+    dt = Math.max(0, Number(dt) || 0);
+    let heal = 0, damage = 0;
+    if (peaceful) {
+      v.drain = 0; v.regen = 0; v.starve = 0;
+      return { heal, damage };
+    }
+    // 饥饿消耗
+    v.drain += dt * (sprinting ? 2 : 1);
+    while (v.drain >= HUNGER_DRAIN_SEC) {
+      v.drain -= HUNGER_DRAIN_SEC;
+      v.hunger = Math.max(0, Math.min(HUNGER_MAX, v.hunger - 1));
+    }
+    // 吃饱缓慢回血；饥饿掉出饱食区间时计时清零，重新吃饱从头累计
+    if (v.hunger >= 18) {
+      v.regen += dt;
+      while (v.regen >= REGEN_SEC) { v.regen -= REGEN_SEC; heal += 1; }
+    } else {
+      v.regen = 0;
+    }
+    // 挨饿扣血；吃到东西后计时清零
+    if (v.hunger <= 0) {
+      v.starve += dt;
+      while (v.starve >= STARVE_SEC) { v.starve -= STARVE_SEC; damage += 1; }
+    } else {
+      v.starve = 0;
+    }
+    return { heal, damage };
   }
 
   // ---------- 背包与合成 ----------
@@ -180,13 +228,57 @@
     return Object.keys(recipe.needs).every((id) => countItem(inv, Number(id)) >= recipe.needs[id]);
   }
 
-  /** 合成：扣材料、放产物；材料不足或背包放不下返回 false */
+  /**
+   * 合成：先克隆槽位在临时数组上试算整步操作（扣材料 + 放产物），全部可行才提交。
+   * 返回 true=成功；false=材料不足；'full'=产物放不下（此时背包内容与槽位对象保持原样）。
+   */
   function craft(inv, recipe) {
     if (!canCraft(inv, recipe)) return false;
-    for (const id of Object.keys(recipe.needs)) removeItems(inv, Number(id), recipe.needs[id]);
-    const left = addItem(inv, recipe.out.id, recipe.out.n);
-    if (left > 0) return 'full'; // 材料已扣但产物放不下（极端情况），调用方提示
+    const tmp = inv.map((s) => (s ? { id: s.id, n: s.n } : null));
+    for (const id of Object.keys(recipe.needs)) removeItems(tmp, Number(id), recipe.needs[id]);
+    if (addItem(tmp, recipe.out.id, recipe.out.n) > 0) return 'full';
+    for (let i = 0; i < inv.length; i++) inv[i] = tmp[i];
     return true;
+  }
+
+  // ---------- 新手引导目标（按顺序解锁） ----------
+
+  /**
+   * 目标表：{ event, id, target, text }。
+   * event 为 'collect'（获得物品）/ 'craft'（合成）/ 'place'（放置方块）。
+   */
+  const QUESTS = [
+    { event: 'collect', id: LOG, target: 3, text: '收集木头' },
+    { event: 'craft', id: PLANKS, target: 1, text: '合成木板' },
+    { event: 'craft', id: WOOD_PICK, target: 1, text: '制作木镐' },
+    { event: 'collect', id: COBBLE, target: 4, text: '获得圆石' },
+    { event: 'craft', id: TORCH, target: 1, text: '制作火把' },
+    { event: 'place', id: TORCH, target: 1, text: '放置火把' },
+  ];
+
+  function createQuest() {
+    return { step: 0, count: 0, done: false };
+  }
+
+  /**
+   * 推进目标（原地修改 q），返回新对象 { changed, completed, done }：
+   * changed=计数或阶段有变化；completed=本次调用完成了至少一个阶段；done=当前完成状态。
+   * 只有当前阶段的 event+id 匹配才累计；一次调用最多推进一个阶段，超出数量不跨阶段继承；
+   * n 非法或非正数时不推进。
+   */
+  function advanceQuest(q, event, id, n = 1) {
+    const cur = QUESTS[q.step];
+    if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0 || !cur || cur.event !== event || cur.id !== id) {
+      return { changed: false, completed: false, done: !!q.done };
+    }
+    q.count += n;
+    if (q.count < cur.target) {
+      return { changed: true, completed: false, done: false };
+    }
+    q.step += 1;
+    q.count = 0; // 多余数量不跨阶段继承
+    if (q.step >= QUESTS.length) q.done = true;
+    return { changed: true, completed: true, done: q.done };
   }
 
   // ---------- 昼夜 ----------
@@ -520,8 +612,9 @@
     TILE, BLOCKS, ITEMS, FACES,
     isItem, nameOf, isOpaque, hash2, heightAt,
     HARDNESS, digSeconds, dropFor, attackDamage,
+    HUNGER_MAX, createVitals, tickVitals,
     INV_SIZE, HOTBAR_SIZE, STACK_MAX, createInventory, addItem, removeItems, countItem, swapSlots,
-    RECIPES, canCraft, craft,
+    RECIPES, canCraft, craft, QUESTS, createQuest, advanceQuest,
     DAY_TICKS, skyState,
     createWorld, getBlock, setBlock, findSpawn, findMobSpawn,
     buildChunkGeometry, raycast,
